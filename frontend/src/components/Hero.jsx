@@ -21,7 +21,7 @@ function VerifiedBadge({ className = '' }) {
 
 function FlyerBoard() {
   return (
-    <div className="relative h-[620px] sm:h-[640px]">
+    <div className="relative h-[760px] sm:h-[640px]">
       <Flyer
         tag="Housing"
         title="1LDK sublet, 6 min to Sangenjaya Stn."
@@ -51,7 +51,7 @@ function FlyerBoard() {
         price="¥2,000/hr"
         rotate={3}
         delay={550}
-        className="bottom-6 left-[4%] w-[50%] sm:w-[44%]"
+        className="bottom-[150px] left-[4%] w-[50%] sm:bottom-6 sm:w-[44%]"
       />
       <Flyer
         tag="Event · Verified club"

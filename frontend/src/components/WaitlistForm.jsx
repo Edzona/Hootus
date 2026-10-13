@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 
 const DOMAIN = '@tuj.temple.edu'
+const TUJ_EMAIL = /^[a-z0-9._%+-]+@tuj\.temple\.edu$/
 
 export default function WaitlistForm({ tone = 'light' }) {
   const id = useId()
@@ -11,7 +12,7 @@ export default function WaitlistForm({ tone = 'light' }) {
   function handleSubmit(e) {
     e.preventDefault()
     const value = email.trim().toLowerCase()
-    if (!value.endsWith(DOMAIN) || value.length <= DOMAIN.length) {
+    if (!TUJ_EMAIL.test(value)) {
       setStatus('error')
       return
     }

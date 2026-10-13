@@ -10,7 +10,7 @@ import Footer from './components/Footer'
 
 export default function App() {
   return (
-    <div className="grain relative min-h-screen overflow-x-hidden">
+    <div className="grain relative min-h-screen overflow-x-clip">
       <Nav />
       <main>
         <Hero />
