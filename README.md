@@ -49,6 +49,16 @@ cp .env.example .env.local
 npm run dev
 ```
 
+### Landing page (local)
+
+The HUS landing page lives in `frontend/` (Vite + React + Tailwind CSS):
+
+```bash
+cd frontend
+npm install
+npm run dev   # http://localhost:5173
+```
+
 Required environment variables (see `.env.example`):
 
 - `VITE_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` — your Supabase project URL
