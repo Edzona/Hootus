@@ -15,6 +15,12 @@ export default function FinalCta() {
         <div className="mt-10">
           <WaitlistForm tone="dark" />
         </div>
+        <p className="mt-6 font-mono text-xs uppercase tracking-widest text-paper/60">
+          Already have a student ID?{' '}
+          <a href="#/signup" className="link-underline pb-1 text-sun">
+            Create your account →
+          </a>
+        </p>
       </div>
       <p
         className="pointer-events-none select-none text-center font-display text-[38vw] font-extrabold leading-[0.75] tracking-[-0.06em] text-cherry-dark"

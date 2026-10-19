@@ -104,7 +104,7 @@ export default function Hero() {
         <p className="rise mt-8 max-w-xl text-lg leading-relaxed text-ink/75" style={{ '--d': '200ms' }}>
           HUS is the marketplace and club hub for TUJ students — housing, sales, gigs, events, and Sangenjaya
           perks in one feed. No Japanese bank account. No Japanese phone number. Just your{' '}
-          <span className="whitespace-nowrap font-mono text-base text-ink">@tuj.temple.edu</span> email.
+          <span className="whitespace-nowrap font-mono text-base text-ink">@temple.edu</span> email.
         </p>
         <div className="rise mt-10" style={{ '--d': '300ms' }}>
           <WaitlistForm />

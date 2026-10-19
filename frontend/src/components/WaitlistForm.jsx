@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 
-const DOMAIN = '@tuj.temple.edu'
-const TUJ_EMAIL = /^[a-z0-9._%+-]+@tuj\.temple\.edu$/
+const DOMAIN = '@temple.edu'
+const TUJ_EMAIL = /^[a-z0-9._%+-]+@temple\.edu$/
 
 export default function WaitlistForm({ tone = 'light' }) {
   const id = useId()

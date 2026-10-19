@@ -23,8 +23,8 @@ export default function Nav() {
             </li>
           ))}
         </ul>
-        <a href="#join" className="btn-primary px-4 py-2.5">
-          Early access
+        <a href="#/signup" className="btn-primary px-4 py-2.5">
+          Create account
         </a>
       </nav>
     </header>

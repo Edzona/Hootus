@@ -6,7 +6,7 @@ Hootus is an English-first platform, closed to the TUJ student body, that doesn'
 
 ## Features
 
-- **TUJ Email Authentication** — Mandatory `@tuj.temple.edu` login to keep the community verified and safe.
+- **Temple Email Authentication** — Mandatory `@temple.edu` login to keep the community verified and safe.
 - **Categorized Marketplace** — Separate feeds for:
   - **Housing** — subleasing and roommate searches
   - **Sales** — clothing, furniture, appliances, electronics, etc.
@@ -24,7 +24,7 @@ Hootus is an English-first platform, closed to the TUJ student body, that doesn'
 | Styling | Tailwind CSS | Mobile-first styling with PostCSS & Autoprefixer |
 | PWA | Web Manifest + Service Worker | "Add to Home Screen" & push notifications |
 | Database | PostgreSQL (Supabase) | Relational schemas with strict foreign keys & constraints |
-| Auth | Supabase Auth | Google OAuth restricted to `@tuj.temple.edu` domains |
+| Auth | Supabase Auth | Google OAuth restricted to `@temple.edu` domains |
 | Security | Row Level Security (RLS) | Database-level row permissions for users & listings |
 | Realtime | Supabase Realtime | WebSockets for buyer/seller chat channels |
 | Storage | Supabase Storage | Bucket hosting for compressed listing photos |
@@ -91,7 +91,7 @@ Required environment variables (see `.env.example`):
 ### Phase 1: Architecture & Database Modeling (Weeks 1–2)
 
 - **Relational Schema** — Define PostgreSQL tables (`profiles`, `listings`, `messages`, `gigs`, `clubs`) in the Supabase Dashboard, linked via foreign keys.
-- **Domain Lock & Security** — Configure Google OAuth in Supabase with domain restriction (`hd=tuj.temple.edu`) and write Row Level Security (RLS) policies for user data protection.
+- **Domain Lock & Security** — Configure Google OAuth in Supabase with domain restriction (`hd=temple.edu`) and write Row Level Security (RLS) policies for user data protection.
 - **Component Kit Setup** — Initialize the React repo with Tailwind CSS for bottom-tab navigation, modal overlays, and responsive feed grids.
 
 ### Phase 2: Core React & Supabase Sprints (Weeks 3–7)
