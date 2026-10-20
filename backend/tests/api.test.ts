@@ -5,16 +5,16 @@ import { after, before, test } from 'node:test';
 import type { Server } from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import postgres from 'postgres';
 import { FeedPostKind, ListingCategory, UserRole, userRoleSchema } from '../src/types/domain.js';
 
 // Public-route tests also work without local environment files.
 process.env.SUPABASE_URL ||= 'http://127.0.0.1:54321';
 process.env.SUPABASE_PUBLISHABLE_KEY ||= 'test-public-key';
-process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'test-server-key';
 process.env.DATABASE_URL ||= 'postgres://hootus_server:unused@127.0.0.1:54322/postgres';
 process.env.CORS_ORIGINS ||= 'http://localhost:5173';
 const { default: app } = await import('../src/app.js');
-const { env } = await import('../src/config/env.js');
 const { sql, withUser } = await import('../src/config/database.js');
 const { feedSchema } = await import('../src/controllers/feed.controller.js');
 const { listingSchema } = await import('../src/controllers/listings.controller.js');
@@ -32,6 +32,29 @@ async function call(path: string, token?: string, body?: unknown, headers = {}) 
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return { status: response.status, body: await response.json(), headers: response.headers };
+}
+
+// Local Auth sends mail to Mailpit; follow its link to get the session a user would get.
+async function emailedAccessToken(email: string) {
+  // The inbox port comes from the committed config so every developer shares it.
+  const config = await readFile(new URL('../../supabase/config.toml', import.meta.url), 'utf8');
+  const port = /\[local_smtp\][^[]*?\bport\s*=\s*(\d+)/.exec(config)?.[1] ?? '54324';
+  const mailpit = process.env.MAILPIT_URL ?? `http://127.0.0.1:${port}`;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const found = await (await fetch(`${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`)).json();
+    const id = found.messages?.[0]?.ID;
+    if (id) {
+      const message = await (await fetch(`${mailpit}/api/v1/message/${id}`)).json();
+      const link = /https?:\/\/[^\s"'<>]+\/auth\/v1\/verify[^\s"'<>]+/.exec(`${message.HTML} ${message.Text}`)?.[0];
+      assert(link, 'Sign-in email contains a verification link');
+      const verified = await fetch(link.replaceAll('&amp;', '&'), { redirect: 'manual' });
+      const token = new URLSearchParams(new URL(verified.headers.get('location')!).hash.slice(1)).get('access_token');
+      assert(token, 'Verification redirects with a session');
+      return token;
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  assert.fail(`No sign-in email arrived for ${email}`);
 }
 
 before(async () => {
@@ -83,13 +106,6 @@ test('health, protected routes, CORS, JSON errors and 404s', async () => {
     email: 'outsider@example.com', name: 'Test', studentId: '123',
     redirectTo: 'http://127.0.0.1:5173',
   })).status, 400);
-  const original = env.NODE_ENV;
-  try {
-    env.NODE_ENV = 'production';
-    assert.equal((await call('/api/auth/test-signin', undefined, {})).status, 404);
-  } finally {
-    env.NODE_ENV = original;
-  }
 });
 
 test('local Supabase: auth, ownership, validation, roles and persistence', {
@@ -99,35 +115,44 @@ test('local Supabase: auth, ownership, validation, roles and persistence', {
   assert(['127.0.0.1', 'localhost'].includes(new URL(url).hostname),
     'Integration fixtures must only run against local Supabase');
   const auth = { persistSession: false, autoRefreshToken: false };
-  const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth });
+  // Fixture access uses the local database owner, the same local-only URL as SQL generation.
+  const ownerUrl = process.env.SQL_GENERATION_DATABASE_URL;
+  assert(ownerUrl && ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(ownerUrl).hostname),
+    'Set SQL_GENERATION_DATABASE_URL to your local Supabase database');
+  const owner = postgres(ownerUrl, { max: 1, onnotice: () => {} });
   const ids: string[] = [];
   const users: Record<string, { id: string; publicId: string; token: string; email: string }> = {};
   try {
     for (const role of Object.values(UserRole)) {
       const email = `hootus-test-${randomUUID()}@temple.edu`;
       const password = `Test-${randomUUID()}!`;
-      const { data, error } = await admin.auth.admin.createUser({
-        email, password, email_confirm: true,
-        user_metadata: { full_name: `Test ${role}`, role: UserRole.Admin },
+      const client = createClient(url, process.env.SUPABASE_PUBLISHABLE_KEY!, { auth });
+      // Local Auth does not require email confirmation, so signUp returns a session.
+      const { data, error } = await client.auth.signUp({
+        email, password, options: { data: { full_name: `Test ${role}`, role: UserRole.Admin } },
       });
       assert.ifError(error);
-      assert(data.user);
+      assert(data.user && data.session);
       ids.push(data.user.id);
-      const initial = await admin.from('profiles').select('role, public_id').eq('auth_user_id', data.user.id).single();
-      assert.ifError(initial.error);
-      assert.equal(initial.data?.role, UserRole.Student, 'Signup metadata must not grant admin');
+      const [initial] = await owner`select role, public_id from public.profiles where auth_user_id = ${data.user.id}`;
+      assert.equal(initial?.role, UserRole.Student, 'Signup metadata must not grant admin');
       if (role !== UserRole.Student) {
-        const result = await admin.from('profiles').update({ role }).eq('auth_user_id', data.user.id);
-        assert.ifError(result.error);
+        await owner`update public.profiles set role = ${role} where auth_user_id = ${data.user.id}`;
       }
-      const client = createClient(url, process.env.SUPABASE_PUBLISHABLE_KEY!, { auth });
-      const login = await client.auth.signInWithPassword({ email, password });
-      assert.ifError(login.error);
-      assert(login.data.session);
-      users[role] = { id: data.user.id, publicId: initial.data!.public_id, token: login.data.session.access_token, email };
+      users[role] = { id: data.user.id, publicId: initial.public_id, token: data.session.access_token, email };
     }
     await t.test('invalid tokens are rejected and own profile is returned', async () => {
       assert.equal((await call('/api/profile/me', 'not-a-jwt')).status, 401);
+      // Tampering with a real token's payload must fail local signature verification.
+      const [header, payload, signature] = users[UserRole.Student].token.split('.');
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
+      claims.sub = users[UserRole.Admin].id;
+      const forged = [header, Buffer.from(JSON.stringify(claims)).toString('base64url'), signature].join('.');
+      assert.equal((await call('/api/profile/me', forged)).status, 401);
+      claims.sub = users[UserRole.Student].id;
+      claims.exp = Math.floor(Date.now() / 1000) - 60;
+      const expired = [header, Buffer.from(JSON.stringify(claims)).toString('base64url'), signature].join('.');
+      assert.equal((await call('/api/profile/me', expired)).status, 401);
       const result = await call('/api/profile/me', users[UserRole.Student].token);
       assert.equal(result.status, 200);
       assert.equal(result.body.data.id, users[UserRole.Student].publicId);
@@ -163,9 +188,7 @@ test('local Supabase: auth, ownership, validation, roles and persistence', {
         await tx`insert into public.listings (category, title) values ('sales', ${marker})`;
         throw new Error('Force transaction rollback');
       }));
-      const saved = await admin.from('listings').select('public_id').eq('title', marker);
-      assert.ifError(saved.error);
-      assert.deepEqual(saved.data, []);
+      assert.equal((await owner`select public_id from public.listings where title = ${marker}`).length, 0);
       await assert.rejects(withUser(users[UserRole.Student].id, tx => tx`
         insert into public.feed_posts (kind, title, business_name)
         values ('perk', 'Unauthorized', 'Shop')
@@ -180,36 +203,30 @@ test('local Supabase: auth, ownership, validation, roles and persistence', {
       assert.equal(state.subject, null);
       assert.equal(state.can_read, false);
     });
-    await t.test('signup returns a useful conflict for duplicate student IDs', async () => {
+    await t.test('signup does not reveal registered emails or student IDs', async () => {
       const studentId = String(Math.floor(Math.random() * 900000000) + 100000000);
-      const assigned = await admin.from('profiles').update({ student_id: studentId }).eq('auth_user_id', users[UserRole.Student].id);
-      assert.ifError(assigned.error);
-      const result = await call('/api/auth/signup', undefined, {
+      await owner`update public.profiles set student_id = ${studentId} where auth_user_id = ${users[UserRole.Student].id}`;
+      // Auth rate-limits repeat requests per email, so send one request for it.
+      const existing = await call('/api/auth/signup', undefined, {
+        email: users[UserRole.Student].email.toUpperCase(), name: 'Another student',
+        studentId: '900000002', redirectTo: 'http://localhost:5173',
+      });
+      assert.equal(existing.status, 202, JSON.stringify(existing.body));
+      const duplicate = await call('/api/auth/signup', undefined, {
         email: `duplicate-${randomUUID()}@temple.edu`, name: 'Duplicate test',
         studentId, redirectTo: 'http://localhost:5173',
       });
-      assert.equal(result.status, 409);
-      assert.equal(result.body.error.code, ErrorCode.StudentIdInUse);
-      assert.match(result.body.error.message, /already registered/);
-      assert(!JSON.stringify(result.body).includes(users[UserRole.Student].email));
-    });
-    await t.test('an existing email cannot register a second student ID, including case variants', async () => {
-      for (const email of [users[UserRole.Student].email, users[UserRole.Student].email.toUpperCase()]) {
-        const result = await call('/api/auth/signup', undefined, {
-          email, name: 'Another student', studentId: '900000002',
-          redirectTo: 'http://localhost:5173',
-        });
-        assert.equal(result.status, 409);
-        assert.equal(result.body.error.code, ErrorCode.EmailInUse);
-      }
+      assert.equal(duplicate.status, 502);
+      assert.equal(duplicate.body.error.code, ErrorCode.AuthRequestFailed);
+      assert(!JSON.stringify(duplicate.body).includes(users[UserRole.Student].email));
     });
     await t.test('database rejects duplicate profile emails even through privileged writes', async () => {
-      const result = await admin.from('profiles')
-        .update({ email: users[UserRole.Student].email.toUpperCase() }).eq('auth_user_id', users[UserRole.Admin].id);
-      assert.equal(result.error?.code, '23505');
-      const original = await admin.from('profiles').select('email').eq('auth_user_id', users[UserRole.Admin].id).single();
-      assert.ifError(original.error);
-      assert.equal(original.data?.email, users[UserRole.Admin].email);
+      await assert.rejects(owner`
+        update public.profiles set email = ${users[UserRole.Student].email.toUpperCase()}
+        where auth_user_id = ${users[UserRole.Admin].id}
+      `, { code: '23505' });
+      const [original] = await owner`select email from public.profiles where auth_user_id = ${users[UserRole.Admin].id}`;
+      assert.equal(original.email, users[UserRole.Admin].email);
     });
     await t.test('signup creates a profile and rejects untrusted redirects', async () => {
       const email = `signup-${randomUUID()}@temple.edu`;
@@ -220,27 +237,15 @@ test('local Supabase: auth, ownership, validation, roles and persistence', {
       assert.equal((await call('/api/auth/signup', undefined, { ...body, redirectTo: 'https://evil.example' })).status, 400);
       const result = await call('/api/auth/signup', undefined, body);
       // Find any created fixture before asserting, so finally can remove it.
-      const profile = await admin.from('profiles').select('auth_user_id').eq('email', email).maybeSingle();
-      assert.ifError(profile.error);
-      if (profile.data) ids.push(profile.data.auth_user_id);
+      const [profile] = await owner`select auth_user_id from public.profiles where email = ${email}`;
+      if (profile) ids.push(profile.auth_user_id);
       assert.equal(result.status, 202, JSON.stringify(result.body));
-      assert(profile.data);
-    });
-    await t.test('local test sign-in returns a real student session', {
-      skip: env.ENABLE_TEST_SIGNIN !== 'true',
-    }, async () => {
-      const result = await call('/api/auth/test-signin', undefined, {});
-      assert.equal(result.status, 200);
-      const token = result.body.data.access_token;
-      try {
-        const profile = await call('/api/profile/me', token);
-        assert.equal(profile.status, 200);
-        assert.equal(profile.body.data.role, UserRole.Student);
-        assert.equal(profile.body.data.email, 'hootus-demo@temple.edu');
-        assert.equal(profile.body.data.student_id, '900000001');
-      } finally {
-        await admin.auth.admin.signOut(token);
-      }
+      assert(profile);
+      // Complete sign-in like a user: open the link from the local Mailpit inbox.
+      const token = await emailedAccessToken(email);
+      const me = await call('/api/profile/me', token);
+      assert.equal(me.status, 200, JSON.stringify(me.body));
+      assert.equal(me.body.data.email, email);
     });
     await t.test('listing validation rejects spoofed ownership and negative prices', async () => {
       for (const body of [
@@ -257,9 +262,8 @@ test('local Supabase: auth, ownership, validation, roles and persistence', {
       assert.equal(result.status, 201, JSON.stringify(result.body));
       assert.deepEqual(result.body.data.author, { name: 'Test student' });
       assert(!('author_id' in result.body.data));
-      const stored = await admin.from('listings').select('price_jpy').eq('public_id', result.body.data.id).single();
-      assert.ifError(stored.error);
-      assert.equal(stored.data?.price_jpy, 1500);
+      const [stored] = await owner`select price_jpy from public.listings where public_id = ${result.body.data.id}`;
+      assert.equal(Number(stored.price_jpy), 1500);
       assert.equal(result.body.data.price_jpy, 1500);
       assert.deepEqual(result.body.data.image_urls, ['https://example.com/desk.jpg']);
       const otherReader = await call('/api/listings?limit=100', users[UserRole.ClubLeader].token);
@@ -293,15 +297,12 @@ test('local Supabase: auth, ownership, validation, roles and persistence', {
       assert.equal((await call('/api/feed', users[UserRole.Admin].token, { ...event, meeting_time: 'tomorrow' })).status, 400);
     });
     await t.test('role changes take effect with the existing token', async () => {
-      const result = await admin.from('profiles').update({ role: UserRole.Student }).eq('auth_user_id', users[UserRole.ClubLeader].id);
-      assert.ifError(result.error);
+      await owner`update public.profiles set role = ${UserRole.Student} where auth_user_id = ${users[UserRole.ClubLeader].id}`;
       assert.equal((await call('/api/feed', users[UserRole.ClubLeader].token, event)).status, 403);
     });
   } finally {
-    for (const user of Object.values(users)) await admin.auth.admin.signOut(user.token);
-    for (const id of ids) {
-      const { error } = await admin.auth.admin.deleteUser(id);
-      assert.ifError(error); // FK cascades remove all test listings and feed posts.
-    }
+    // FK cascades remove the profiles and all test listings and feed posts.
+    for (const id of ids) await owner`delete from auth.users where id = ${id}`;
+    await owner.end();
   }
 });
