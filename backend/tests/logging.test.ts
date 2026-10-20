@@ -25,7 +25,7 @@ test('one safe log per request, severity, timing and response correlation', asyn
   app.use(requestLogger);
   app.use(express.json());
   app.post('/items/:id', (_req, res) => { res.status(201).json({ data: true }); });
-  app.get('/conflict', () => { throw new HttpError(409, ErrorCode.EmailInUse, 'private-email@temple.edu'); });
+  app.get('/conflict', () => { throw new HttpError(409, ErrorCode.Conflict, 'private-email@temple.edu'); });
   app.get('/failure', () => { throw new Error('secret-database-password'); });
   app.get('/aborted', (_req, res) => { res.destroy(); });
   app.use((_req, _res, next) => next(new HttpError(404, ErrorCode.NotFound, 'Not found')));
@@ -67,7 +67,7 @@ test('one safe log per request, severity, timing and response correlation', asyn
     })).text();
     assert.equal(entries.length, 5);
     assert.equal(entries[1].channel, 'warn');
-    assert.equal(entries[1].value.errorCode, ErrorCode.EmailInUse);
+    assert.equal(entries[1].value.errorCode, ErrorCode.Conflict);
     assert.equal(entries[2].channel, 'error');
     assert.equal(entries[2].value.status, 500);
     assert.equal(entries[2].value.errorCode, ErrorCode.InternalError);
