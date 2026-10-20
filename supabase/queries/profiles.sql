@@ -1,5 +1,5 @@
 /* @name GetAuthProfile */
-select id::text as "internal_id!", public_id, role, full_name
+select id::text as "internal_id!", public_id, email, role, full_name
 from public.profiles where auth_user_id = :authUserId!;
 
 /* @name GetMyProfile */
