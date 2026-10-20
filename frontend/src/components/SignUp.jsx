@@ -1,7 +1,5 @@
-import { ErrorCode } from '../../../backend/src/types/errorCode'
 import { useId, useState } from 'react'
 import { Wordmark } from './Logo'
-import { getSupabase } from '../lib/supabase'
 import { apiRequest } from '../lib/api'
 
 const DOMAIN = '@temple.edu'
@@ -56,25 +54,7 @@ export default function SignUp() {
       })
       setStatus('success')
     } catch (error) {
-      const field = error.code === ErrorCode.StudentIdInUse ? 'studentId'
-        : error.code === ErrorCode.EmailInUse ? 'email' : 'form'
-      setErrors({ [field]: error.message || 'Unable to send your sign-in link. Please try again.' })
-      setStatus('error')
-    }
-  }
-
-  async function testSignIn() {
-    setStatus('sending')
-    setErrors({})
-    try {
-      const tokens = await apiRequest('/auth/test-signin', {
-        method: 'POST', body: {}, authenticated: false,
-      })
-      const { error } = await getSupabase().auth.setSession(tokens)
-      if (error) throw error
-      window.location.hash = '/profile'
-    } catch (error) {
-      setErrors({ form: error.message })
+      setErrors({ form: error.message || 'Unable to send your sign-in link. Please try again.' })
       setStatus('error')
     }
   }
@@ -178,14 +158,9 @@ export default function SignUp() {
           </button>
 
           {import.meta.env.DEV && (
-            <div className="mt-8 border-2 border-dashed border-ink/40 bg-sky p-5">
-              <p className="eyebrow mb-3">Local preview</p>
-              <button type="button" onClick={testSignIn} disabled={status === 'sending'}
-                className="btn-primary bg-white text-ink disabled:opacity-50">
-                Test sign in →
-              </button>
-              <p className="mt-3 text-sm text-ink/70">Explore your profile with a sample student account.</p>
-            </div>
+            <p className="mt-6 text-sm text-ink/70">
+              Local preview: open sign-in emails in <a className="underline" href="http://127.0.0.1:54324" target="_blank" rel="noreferrer">Mailpit</a>.
+            </p>
           )}
 
           <p className="rise mt-4 font-mono text-[11px] uppercase tracking-widest text-ink/50" style={{ '--d': '400ms' }}>

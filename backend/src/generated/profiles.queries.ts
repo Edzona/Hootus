@@ -8,6 +8,7 @@ export interface IGetAuthProfileParams {
 
 /** 'GetAuthProfile' return type */
 export interface IGetAuthProfileResult {
+  email: string;
   full_name: string | null;
   internal_id: string;
   public_id: string;
@@ -20,12 +21,12 @@ export interface IGetAuthProfileQuery {
   result: IGetAuthProfileResult;
 }
 
-const getAuthProfileIR: any = {"usedParamSet":{"authUserId":true},"params":[{"name":"authUserId","required":true,"transform":{"type":"scalar"},"locs":[{"a":104,"b":115}]}],"statement":"select id::text as \"internal_id!\", public_id, role, full_name\nfrom public.profiles where auth_user_id = :authUserId!"};
+const getAuthProfileIR: any = {"usedParamSet":{"authUserId":true},"params":[{"name":"authUserId","required":true,"transform":{"type":"scalar"},"locs":[{"a":111,"b":122}]}],"statement":"select id::text as \"internal_id!\", public_id, email, role, full_name\nfrom public.profiles where auth_user_id = :authUserId!"};
 
 /**
  * Query generated from SQL:
  * ```
- * select id::text as "internal_id!", public_id, role, full_name
+ * select id::text as "internal_id!", public_id, email, role, full_name
  * from public.profiles where auth_user_id = :authUserId!
  * ```
  */

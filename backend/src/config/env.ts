@@ -10,9 +10,7 @@ const schema = z.object({
   }, 'Use the dedicated hootus_server database login'),
   SUPABASE_URL: z.url(),
   SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  ENABLE_TEST_SIGNIN: z.enum(['true', 'false']).default('false'),
   CORS_ORIGINS: z.string().default('http://localhost:5173')
     .transform(value => value.split(',').map(origin => origin.trim()))
     .pipe(z.array(z.url()).min(1)),
