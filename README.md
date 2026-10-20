@@ -32,37 +32,38 @@ Hootus is an English-first platform, closed to the TUJ student body, that doesn'
 
 ## Getting Started
 
-> **Prerequisites:** Node.js 18+, a Supabase project, and a Vercel account.
+The working app is split into `frontend/` (Vite/React), `backend/`
+(TypeScript/Express), and `supabase/` (database migrations).
+See [backend and frontend setup](backend/README.md) for local development,
+environment variables, tests, and Vercel configuration.
+
+> **Prerequisites:** Node.js 22+, local or hosted Supabase, and a Vercel account for deployment.
 
 ```bash
-# Clone the repo
-git clone https://github.com/<your-org>/Hootus.git
-cd Hootus
-
-# Install dependencies
-npm install
-
-# Copy the environment template and fill in your Supabase keys
-cp .env.example .env.local
-
-# Start the dev server
+# Terminal 1, from the repository root
+cd backend
+npm ci
+# Configure .env using .env.example
 npm run dev
 ```
 
-### Landing page (local)
+### Frontend (local)
 
 The HUS landing page lives in `frontend/` (Vite + React + Tailwind CSS):
 
 ```bash
+# Terminal 2, from the repository root
 cd frontend
-npm install
+npm ci
+# Configure .env using .env.example
 npm run dev   # http://localhost:5173
 ```
 
-Required environment variables (see `.env.example`):
+Browser environment variables (see `frontend/.env.example`):
 
-- `VITE_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` — your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — your Supabase anon key
+- `VITE_SUPABASE_URL` — your Supabase project URL
+- `VITE_SUPABASE_PUBLISHABLE_KEY` — your Supabase publishable or legacy anon key
+- `VITE_API_URL` — backend origin on Vercel; leave empty for the local proxy
 
 ## Project Timeline (3 Months)
 
