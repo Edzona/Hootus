@@ -87,13 +87,13 @@ only for Auth; do not grant browser roles application-table access.
 - Reuse the small module-level Postgres.js pool; keep `prepare: false` for
   transaction pooling. Only `withUser` opens user transactions. Keep external
   HTTP calls outside transactions. Parameterize all SQL; never concatenate
-  request values into SQL. The service-role Supabase client is reserved for
-  trusted Auth administration and signup checks, not normal data controllers.
+  request values into SQL. The API holds no service-role key; integration tests use the local owner
+  `SQL_GENERATION_DATABASE_URL` for fixtures and read sign-in emails from Mailpit.
 - Raw Realtime table events are not a frontend contract. Browser table grants
   stay revoked; implement authorized, minimal messaging payloads separately.
 - Never commit `.env`, expose service-role keys in browser code, print tokens,
   or return secrets in errors. Only public Supabase keys belong in `VITE_*`.
-- Test sign-in must stay opt-in, local-only, student-only, and disabled in production.
+- Do not add test-only sign-in routes; test locally through real email links in Mailpit.
 
 ## Style and tests
 

@@ -6,23 +6,39 @@ and Realtime. Node 22 or newer is required.
 
 ## Run locally
 
-From `backend/`:
+Requires Node 22 or newer and Docker (for local Supabase). The Supabase CLI is a
+pinned devDependency of the repository root, so `npx supabase` uses that version.
 
-```sh
-npm ci
-cp .env.example .env  # Only if you do not already have .env
-npm run dev
-```
+1. From the repository root, install the CLI and start local Supabase. On a
+   fresh database this applies `supabase/migrations/` and `supabase/seed.sql`:
 
-Fill in `.env` using your local Supabase URL, publishable (or legacy anon) key,
-and service role key. Both the service role key and `DATABASE_URL` must stay
-on the server. Apply the schema, then use a trusted admin `psql` session to set
-the dedicated login's password with `\password hootus_server` (interactive prompt;
-do not put the password in migrations or shell history). Set the local URL to
-`postgresql://hootus_server:URL_ENCODED_PASSWORD@127.0.0.1:54322/postgres`.
-The current local workspace already has this login configured in ignored `.env`.
-`CORS_ORIGINS` is a comma-separated list of exact frontend origins, without
-trailing slashes. The default API port is 5000.
+   ```sh
+   npm ci
+   npx supabase start
+   npx supabase status -o env   # API_URL, PUBLISHABLE_KEY (or ANON_KEY), DB_URL
+   ```
+
+2. From `backend/`, create `.env` and install:
+
+   ```sh
+   npm ci
+   cp .env.example .env  # Only if you do not already have .env
+   ```
+
+   Fill in `SUPABASE_URL` (`API_URL`), `SUPABASE_PUBLISHABLE_KEY`,
+   `CORS_ORIGINS` (comma-separated exact frontend origins, no trailing slashes),
+   and `DATABASE_URL`, which must stay on the server. `.env.example` already has
+   the local value: the `hootus_server` login, with the well-known local password
+   that `supabase/seed.sql` sets on a fresh database.
+   Set `SQL_GENERATION_DATABASE_URL` to the status command's `DB_URL`; typed SQL
+   generation and integration tests use it. The API needs no service role key.
+
+3. Start the API (default port 5000). `npm run dev` first generates SQL types, so
+   the local database must be running with migrations applied:
+
+   ```sh
+   npm run dev
+   ```
 
 In another terminal, from `frontend/`:
 
@@ -39,40 +55,31 @@ Open `http://localhost:5173`.
 On macOS, AirPlay may occupy port 5000. In that case set `PORT=5001` in
 `backend/.env` and `API_PROXY_TARGET=http://127.0.0.1:5001` in `frontend/.env`.
 
-The signup form calls `/api/auth/signup`. The backend validates the fields,
-checks student ID conflicts, and requests a Supabase magic link, passing
-`full_name` and `student_id` metadata for the existing profile trigger.
-Duplicate IDs return HTTP 409 with code `STUDENT_ID_IN_USE`; the form displays
-the message under Student ID. Existing emails return HTTP 409 `EMAIL_IN_USE`,
-shown under Email, including when a different student ID is submitted.
+The signup form calls `/api/auth/signup`. The backend validates the fields and
+requests a Supabase magic link, passing `full_name` and `student_id` metadata for
+the existing profile trigger. Responses never reveal whether an email or student
+ID is already registered: existing emails receive a normal sign-in link, and a
+duplicate student ID fails with a generic `AUTH_REQUEST_FAILED` error.
 Postgres enforces unique student IDs and case-insensitive unique profile emails.
 The "Already registered? Sign in" option only asks for an email and calls
 `/api/auth/signin` without trying to create a new account.
 Supabase must allow `http://localhost:5173` and `http://127.0.0.1:5173` as Auth
 redirect URLs. These are included in `supabase/config.toml`; an already-running
 local Supabase stack must be restarted to load config changes. Local Auth emails
-appear in Supabase's local mail inbox rather than a real mailbox.
+appear in Supabase's local Mailpit inbox rather than a real mailbox.
 After following the link, the frontend opens `#/profile`, loads
 `/api/profile/me`, and shows a private campus card and account details.
 The waitlist form remains a UI prototype.
 
-### Test sign-in (local only)
+### Local sign-in
 
-The demo student is seeded by `supabase/seed.sql` after migrations on a fresh
-local database (already configured in `supabase/config.toml`). For an existing
-local database, apply that SQL file in its SQL Editor; it is safe to rerun.
-Do not reset your database just to seed it. Keep this fixture out of production.
-
-Set `ENABLE_TEST_SIGNIN=true` in `backend/.env`, then restart the backend if it
-was already running.
-Open `#/signup` and click **Test sign in** to view the profile without email.
-
-The button only exists in Vite development mode. The backend endpoint requires
-`ENABLE_TEST_SIGNIN=true`, development mode, a loopback Supabase URL, a loopback
-request, and a dedicated test account with the `student` role. It is disabled
-on Vercel and in production. The endpoint verifies the seeded account before
-issuing a one-time email token internally and exchanging it for a normal session.
-There is no demo password or user-creation script.
+Local sign-in works like production: submit your email on `#/signup` and open
+the link from Supabase's local Mailpit inbox (`MAILPIT_URL` in
+`npx supabase status -o env`; `http://127.0.0.1:54324` with the committed config).
+`supabase/seed.sql` adds a demo student (`hootus-demo@temple.edu`) for the
+sign-in option; on an existing database apply it in the SQL Editor (safe to
+rerun, do not reset your database). Keep this fixture out of production.
+There is no test sign-in endpoint, demo password, or service-role key in the app.
 
 ## Routes
 
@@ -84,7 +91,6 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | GET | `/health`, `/api/health` | Public |
 | POST | `/api/auth/signup` | Public; validated Temple email, name, student ID, allowed redirect |
 | POST | `/api/auth/signin` | Public; existing-account email sign-in |
-| POST | `/api/auth/test-signin` | Opt-in local development only |
 | GET | `/api/profile/me` | Confirmed Temple user; own profile |
 | GET | `/api/listings` | Confirmed Temple user |
 | POST | `/api/listings` | Confirmed Temple user |
@@ -114,9 +120,15 @@ internal typed functions. See [AGENTS.md](AGENTS.md) for coding conventions.
 
 List endpoints accept `?limit=20&offset=0` (maximum limit: 100).
 All protected calls require `Authorization: Bearer <Supabase access token>`.
-The server verifies the token with Auth and reads the current database role on
-every request. It never trusts metadata roles. Each database transaction uses
-the verified Auth user ID; the database rechecks current membership and role.
+The server verifies the token's signature and expiry locally with `getClaims`
+(Auth's public signing keys, cached), so a request normally makes no Auth network
+call. It then reads the current profile and role from the database on every
+request and never trusts metadata roles. Each database transaction uses the
+verified Auth user ID; the database rechecks current membership and role. A
+revoked session or signed-out user keeps working until its access token expires
+(`jwt_expiry`, 1 hour by default); a deleted account or changed role takes effect
+immediately because the database is checked each time. The frontend refreshes
+tokens automatically.
 
 Example frontend calls, using `src/lib/api.js`:
 
@@ -180,8 +192,10 @@ npm test
 npm run test:integration
 ```
 
-The integration test requires local Supabase with the initial migration applied.
-It creates temporary accounts, checks auth, validation, role changes, minimal
+The integration test requires local Supabase with the initial migration applied,
+`SQL_GENERATION_DATABASE_URL` in `.env`, and `[auth.email].enable_confirmations`
+left disabled (as committed) so test accounts sign up with a session. It also
+reads the sign-up email from Mailpit. It creates temporary accounts, checks auth, validation, role changes, minimal
 responses, direct-browser table denial, pooled identity isolation and rollback,
 then deletes those accounts and their dependent rows. It rejects remote
 Supabase URLs. `npm test` only runs the checks that do not require Supabase.
@@ -194,10 +208,12 @@ Use two Vercel projects from this repository:
    newer, Build Command `npm run build`, Output Directory `public`. The included
    configuration rewrites requests to the `api/index.ts` function while Express
    routes retain their original paths. Set `SUPABASE_URL`,
-   `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, and `CORS_ORIGINS`
-   in Vercel. `CORS_ORIGINS` must include the frontend's HTTPS origin.
+   `SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL`, and `CORS_ORIGINS`
+   in Vercel. The API does not use a service-role key; do not set one. `CORS_ORIGINS` must include the frontend's HTTPS origin.
    Use the Supabase **transaction pooler** host/port from the Connect dialog,
-   with username `hootus_server.PROJECT_REF` and the dedicated role's password.
+   with username `hootus_server.PROJECT_REF`. The migration creates this role
+   without a password; set a unique one in the hosted SQL Editor
+   (`alter role hootus_server password '...'`) and keep it out of the repository.
    Hosted connections require verified TLS. Keep this credential out of frontend
    environments; the default `postgres` login is deliberately rejected.
 2. **Frontend:** Root Directory `frontend`, Framework Preset **Vite**. Set
@@ -224,7 +240,7 @@ mail inbox after enabling `[auth.email].enable_confirmations` and restarting the
 stack. The current local config still has confirmations disabled.
 
 References: [Vercel Express](https://vercel.com/docs/frameworks/backend/express),
-[Supabase token verification](https://supabase.com/docs/reference/javascript/auth-getuser),
+[Supabase token verification](https://supabase.com/docs/reference/javascript/auth-getclaims),
 [email-link sign-in](https://supabase.com/docs/reference/javascript/auth-signinwithotp).
 
 ## Typed SQL
@@ -244,5 +260,4 @@ Generation uses a separate local-only database URL (see `.env.example`). The API
 continues to use its restricted `DATABASE_URL`, transactions, and RLS. Vercel only
 runs `npm run build`; it does not generate types or need the local tooling URL.
 PgTyped parameterizes query values; it does not replace Zod or authorization.
-Existing trusted Auth administration uses Supabase's client and is outside PgTyped.
 TypeScript is pinned to 5.9 because PgTyped CLI currently declares support through 5.
