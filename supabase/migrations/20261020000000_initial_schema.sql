@@ -196,7 +196,7 @@ alter table public.messages enable row level security;
 revoke all on sequence public.profiles_id_seq, public.listings_id_seq,
   public.feed_posts_id_seq, public.messages_id_seq from public, anon, authenticated;
 grant usage on sequence public.profiles_id_seq, public.listings_id_seq,
-  public.feed_posts_id_seq, public.messages_id_seq to hootus_api, service_role;
+  public.feed_posts_id_seq, public.messages_id_seq to hootus_api;
 
 -- Explicit grants override permissive project defaults. Identity, ownership,
 -- roles and creation timestamps cannot be changed by browser clients.
@@ -214,7 +214,6 @@ grant update (kind, title, body, image_urls, room_number, meeting_time,
   business_name, coupon_code, expires_at) on public.feed_posts to hootus_api;
 grant delete on public.listings, public.feed_posts to hootus_api;
 grant insert (sender_id, recipient_id, body) on public.messages to hootus_api;
-grant all on public.profiles, public.listings, public.feed_posts, public.messages to service_role;
 
 -- Profiles contain private email/student IDs: only the owner or an admin reads.
 create policy profiles_read on public.profiles for select to hootus_api
