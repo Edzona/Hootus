@@ -30,7 +30,8 @@ environment.PGURI = url;
 try {
   const configPath = resolve(temporary, 'config.json');
   await writeFile(configPath, JSON.stringify(config));
-  const child = spawn(process.execPath, [resolve(root, 'node_modules/@pgtyped/cli/lib/index.js'), '-c', configPath, ...(watch ? ['-w'] : [])], {
+  // --no-warnings hides PgTyped's harmless "File descriptor" noise on Node 24.
+  const child = spawn(process.execPath, ['--no-warnings', resolve(root, 'node_modules/@pgtyped/cli/lib/index.js'), '-c', configPath, ...(watch ? ['-w'] : [])], {
     cwd: root, env: environment, stdio: 'inherit',
   });
   process.once('SIGINT', () => child.kill('SIGINT'));
