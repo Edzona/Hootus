@@ -1,6 +1,10 @@
--- Local development only. No passwords or API keys.
+-- Local development only. Never apply this file to a hosted project.
 -- The existing Auth trigger creates the matching student profile.
 begin;
+
+-- Well-known local password for the API's dedicated login, like the local
+-- postgres:postgres owner. Hosted projects set their own secret instead.
+alter role hootus_server password 'postgres';
 
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password,
