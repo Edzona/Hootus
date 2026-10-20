@@ -75,8 +75,10 @@ coupon code and expiry.
 ## Server credentials and deployment
 
 The initial schema creates `hootus_api` (NOLOGIN) and `hootus_server` (LOGIN,
-NOINHERIT), both NOBYPASSRLS. It contains no password. In a trusted admin `psql`
-session, run `\password hootus_server` to set a unique password interactively.
+NOINHERIT), both NOBYPASSRLS. It contains no password. Local development gets a
+well-known password from `seed.sql`. For a hosted project, set a unique password
+as the database owner (SQL Editor or a trusted admin `psql` session: run
+`\password hootus_server` to be prompted).
 Store its connection string only in the backend's `DATABASE_URL` environment
 variable. Hosted deployments use Supabase's transaction pooler and verified TLS;
 the username is `hootus_server.PROJECT_REF`. Never grant this role to browser
