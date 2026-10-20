@@ -6,7 +6,7 @@ Hootus is an English-first platform, closed to the TUJ student body, that doesn'
 
 ## Features
 
-- **TUJ Email Authentication** — Mandatory `@tuj.temple.edu` login to keep the community verified and safe.
+- **Temple Email Authentication** — Mandatory `@temple.edu` login to keep the community verified and safe.
 - **Categorized Marketplace** — Separate feeds for:
   - **Housing** — subleasing and roommate searches
   - **Sales** — clothing, furniture, appliances, electronics, etc.
@@ -24,7 +24,7 @@ Hootus is an English-first platform, closed to the TUJ student body, that doesn'
 | Styling | Tailwind CSS | Mobile-first styling with PostCSS & Autoprefixer |
 | PWA | Web Manifest + Service Worker | "Add to Home Screen" & push notifications |
 | Database | PostgreSQL (Supabase) | Relational schemas with strict foreign keys & constraints |
-| Auth | Supabase Auth | Google OAuth restricted to `@tuj.temple.edu` domains |
+| Auth | Supabase Auth | Google OAuth restricted to `@temple.edu` domains |
 | Security | Row Level Security (RLS) | Database-level row permissions for users & listings |
 | Realtime | Supabase Realtime | WebSockets for buyer/seller chat channels |
 | Storage | Supabase Storage | Bucket hosting for compressed listing photos |
@@ -32,27 +32,38 @@ Hootus is an English-first platform, closed to the TUJ student body, that doesn'
 
 ## Getting Started
 
-> **Prerequisites:** Node.js 18+, a Supabase project, and a Vercel account.
+The working app is split into `frontend/` (Vite/React), `backend/`
+(TypeScript/Express), and `supabase/` (database migrations).
+See [backend and frontend setup](backend/README.md) for local development,
+environment variables, tests, and Vercel configuration.
+
+> **Prerequisites:** Node.js 22+, local or hosted Supabase, and a Vercel account for deployment.
 
 ```bash
-# Clone the repo
-git clone https://github.com/<your-org>/Hootus.git
-cd Hootus
-
-# Install dependencies
-npm install
-
-# Copy the environment template and fill in your Supabase keys
-cp .env.example .env.local
-
-# Start the dev server
+# Terminal 1, from the repository root
+cd backend
+npm ci
+# Configure .env using .env.example
 npm run dev
 ```
 
-Required environment variables (see `.env.example`):
+### Frontend (local)
 
-- `VITE_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` — your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — your Supabase anon key
+The HUS landing page lives in `frontend/` (Vite + React + Tailwind CSS):
+
+```bash
+# Terminal 2, from the repository root
+cd frontend
+npm ci
+# Configure .env using .env.example
+npm run dev   # http://localhost:5173
+```
+
+Browser environment variables (see `frontend/.env.example`):
+
+- `VITE_SUPABASE_URL` — your Supabase project URL
+- `VITE_SUPABASE_PUBLISHABLE_KEY` — your Supabase publishable or legacy anon key
+- `VITE_API_URL` — backend origin on Vercel; leave empty for the local proxy
 
 ## Project Timeline (3 Months)
 
@@ -81,7 +92,7 @@ Required environment variables (see `.env.example`):
 ### Phase 1: Architecture & Database Modeling (Weeks 1–2)
 
 - **Relational Schema** — Define PostgreSQL tables (`profiles`, `listings`, `messages`, `gigs`, `clubs`) in the Supabase Dashboard, linked via foreign keys.
-- **Domain Lock & Security** — Configure Google OAuth in Supabase with domain restriction (`hd=tuj.temple.edu`) and write Row Level Security (RLS) policies for user data protection.
+- **Domain Lock & Security** — Configure Google OAuth in Supabase with domain restriction (`hd=temple.edu`) and write Row Level Security (RLS) policies for user data protection.
 - **Component Kit Setup** — Initialize the React repo with Tailwind CSS for bottom-tab navigation, modal overlays, and responsive feed grids.
 
 ### Phase 2: Core React & Supabase Sprints (Weeks 3–7)
