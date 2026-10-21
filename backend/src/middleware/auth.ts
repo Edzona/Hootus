@@ -32,7 +32,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
     throw new HttpError(403, ErrorCode.ProfileRequired, 'An active student profile is required.');
   }
   req.user = {
-    id: profile.public_id, internalId: profile.internal_id, email: profile.email, role: role.data,
+    id: profile.public_id, internalId: profile.internal_id, authUserId: sub, email: profile.email, role: role.data,
     ...(profile.full_name ? { name: profile.full_name } : {}),
   };
   req.db = db;

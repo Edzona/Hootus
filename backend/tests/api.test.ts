@@ -18,12 +18,13 @@ const { default: app } = await import('../src/app.js');
 const { sql, withUser } = await import('../src/config/database.js');
 const { feedSchema } = await import('../src/controllers/feed.controller.js');
 const { listingSchema } = await import('../src/controllers/listings.controller.js');
+const { profileUpdateSchema } = await import('../src/controllers/profile.controller.js');
 let server: Server;
 let base: string;
 
-async function call(path: string, token?: string, body?: unknown, headers = {}) {
+async function call(path: string, token?: string, body?: unknown, headers = {}, method = body === undefined ? 'GET' : 'POST') {
   const response = await fetch(`${base}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
+    method,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
@@ -87,12 +88,28 @@ test('domain enums preserve wire values and reject unknown cases', () => {
   assert.equal(feedSchema.safeParse({ kind: FeedPostKind.Perk, title: 'Missing business' }).success, false);
 });
 
+test('profile updates accept only bio and photo changes', () => {
+  assert.equal(profileUpdateSchema.parse({ bio: '  Hello  ' }).bio, 'Hello');
+  assert.equal(profileUpdateSchema.parse({ bio: '   ' }).bio, null);
+  assert.equal(profileUpdateSchema.parse({ avatar_url: null }).avatar_url, null);
+  assert.equal(profileUpdateSchema.safeParse({ bio: 'x'.repeat(501) }).success, false);
+  assert.equal(profileUpdateSchema.safeParse({}).success, false);
+  for (const field of ['full_name', 'student_id', 'role', 'email']) {
+    assert.equal(profileUpdateSchema.safeParse({ bio: 'Hi', [field]: 'x' }).success, false);
+  }
+});
+
 test('health, protected routes, CORS, JSON errors and 404s', async () => {
   assert.equal((await call('/health')).status, 200);
   assert.equal((await call('/api/health')).status, 200);
   for (const path of ['/api/profile/me', '/api/listings', '/api/feed']) {
     assert.equal((await call(path)).status, 401);
   }
+  assert.equal((await call('/api/profile/me', undefined, { bio: 'Hi' }, {}, 'PATCH')).status, 401);
+  const preflight = await fetch(`${base}/api/profile/me`, { method: 'OPTIONS', headers: {
+    Origin: 'http://localhost:5173', 'Access-Control-Request-Method': 'PATCH',
+  } });
+  assert.match(preflight.headers.get('access-control-allow-methods') ?? '', /PATCH/);
   assert.equal((await call('/missing')).status, 404);
   assert.equal((await call('/health', undefined, undefined, { Origin: 'https://untrusted.example' })).status, 403);
   const allowed = await call('/health', undefined, undefined, { Origin: 'http://localhost:5173' });
@@ -295,6 +312,59 @@ test('local Supabase: auth, ownership, validation, roles and persistence', {
       assert.equal((await call('/api/feed', users[UserRole.Admin].token, perk)).status, 201);
       assert.equal((await call('/api/feed', users[UserRole.Admin].token, event)).status, 201);
       assert.equal((await call('/api/feed', users[UserRole.Admin].token, { ...event, meeting_time: 'tomorrow' })).status, 400);
+    });
+    await t.test('students update their own bio and uploaded photo only', async () => {
+      const student = users[UserRole.Student];
+      const other = users[UserRole.Admin];
+      const storage = (token: string) => createClient(url, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+        auth, global: { headers: { Authorization: `Bearer ${token}` } },
+      }).storage.from('avatars');
+      const png = new Blob([Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64')], { type: 'image/png' });
+      const path = `${student.id}/${randomUUID()}.png`;
+      const uploaded = await storage(student.token).upload(path, png, { contentType: 'image/png' });
+      assert.ifError(uploaded.error);
+      try {
+        // Storage rules: only your own folder, only images.
+        const intruder = await storage(other.token).upload(`${student.id}/${randomUUID()}.png`, png, { contentType: 'image/png' });
+        assert(intruder.error, 'Uploading into another student folder must fail');
+        const text = await storage(student.token).upload(`${student.id}/${randomUUID()}.png`,
+          new Blob(['not an image'], { type: 'text/plain' }), { contentType: 'text/plain' });
+        assert(text.error, 'Non-image uploads must fail');
+        const removedByOther = await storage(other.token).remove([path]);
+        assert.equal(removedByOther.data?.length ?? 0, 0, 'Another student cannot delete my photo');
+
+        const photo = storage(student.token).getPublicUrl(path).data.publicUrl;
+        const saved = await call('/api/profile/me', student.token, { bio: '  Second-year CS student  ', avatar_url: photo }, {}, 'PATCH');
+        assert.equal(saved.status, 200, JSON.stringify(saved.body));
+        assert.equal(saved.body.data.bio, 'Second-year CS student');
+        assert.equal(saved.body.data.avatar_url, photo);
+        assert.equal((await fetch(photo)).status, 200, 'Saved photo URL is publicly viewable');
+        const bioOnly = await call('/api/profile/me', student.token, { bio: 'Updated bio' }, {}, 'PATCH');
+        assert.equal(bioOnly.body.data.avatar_url, photo, 'Omitted fields stay unchanged');
+
+        // Photos must come from the caller's own folder in our bucket.
+        const otherFolder = photo.replace(student.id, other.id);
+        for (const avatar_url of ['https://example.com/me.png', otherFolder, photo.replace('.png', '.gif')]) {
+          const rejected = await call('/api/profile/me', student.token, { avatar_url }, {}, 'PATCH');
+          assert.equal(rejected.status, 400, avatar_url);
+        }
+        for (const body of [{ bio: 'x'.repeat(501) }, { full_name: 'New name' }, { student_id: '123456789' }, { role: UserRole.Admin }]) {
+          assert.equal((await call('/api/profile/me', student.token, body, {}, 'PATCH')).status, 400);
+        }
+        const [stored] = await owner`select full_name, role, bio, avatar_url from public.profiles where auth_user_id = ${student.id}`;
+        assert.deepEqual(stored, { full_name: 'Test student', role: UserRole.Student, bio: 'Updated bio', avatar_url: photo });
+        const [untouched] = await owner`select bio, avatar_url from public.profiles where auth_user_id = ${other.id}`;
+        assert.deepEqual(untouched, { bio: null, avatar_url: null });
+
+        const cleared = await call('/api/profile/me', student.token, { bio: '', avatar_url: null }, {}, 'PATCH');
+        assert.equal(cleared.status, 200);
+        assert.equal(cleared.body.data.bio, null);
+        assert.equal(cleared.body.data.avatar_url, null);
+      } finally {
+        await storage(student.token).remove([path]);
+      }
     });
     await t.test('role changes take effect with the existing token', async () => {
       await owner`update public.profiles set role = ${UserRole.Student} where auth_user_id = ${users[UserRole.ClubLeader].id}`;
