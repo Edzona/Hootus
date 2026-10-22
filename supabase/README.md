@@ -49,6 +49,16 @@ confirmation enabled in Supabase Auth.
 
 The table above describes backend operations under RLS, not direct browser access.
 
+### Profile photos (Storage)
+
+`migrations/20261023000000_profile_photo_and_bio.sql` creates the public
+`avatars` bucket (JPEG, PNG or WebP, max 2 MB). This is the one direct browser
+permission: a signed-in user may upload, read and delete files only at
+`avatars/<their Auth UUID>/<file>`. Application tables remain API-only; the
+browser saves the photo URL through `PATCH /api/profile/me`, which accepts only
+URLs inside the caller's own folder. Public bucket URLs are viewable by anyone
+who has the link; file names are random UUIDs. Bios are limited to 500 characters.
+
 Role assignment is a trusted operation through the SQL Editor or a server using
 the service role. Never put the service role key in the frontend. For example:
 

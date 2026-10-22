@@ -1,0 +1,541 @@
+From 3c7c5d683344a623bf1d250732bc66e73afe55b3 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Wed, 21 Oct 2026 15:32:50 +0000
+Subject: [PATCH] feat: profile photo upload and bio editing
+
+- avatars Storage bucket with own-folder policies (2 MB, JPEG/PNG/WebP)
+- 500-character bio limit in Postgres
+- PATCH /api/profile/me for bio and photo URL, own-folder URL check
+- Profile page editor: photo preview/upload/remove and bio
+- Unit and integration tests
+---
+ backend/README.md                             |   1 +
+ backend/src/app.ts                            |   2 +-
+ backend/src/controllers/profile.controller.ts |  29 +++-
+ backend/src/generated/profiles.queries.ts     |  44 ++++++
+ backend/src/middleware/auth.ts                |   2 +-
+ backend/src/routes/profile.routes.ts          |   4 +-
+ backend/src/types/express.d.ts                |   1 +
+ backend/tests/api.test.ts                     |  74 +++++++++-
+ frontend/src/components/Profile.jsx           |   6 +-
+ frontend/src/components/ProfileEditor.jsx     | 131 ++++++++++++++++++
+ supabase/README.md                            |  10 ++
+ .../20261023000000_profile_photo_and_bio.sql  |  29 ++++
+ supabase/queries/profiles.sql                 |   8 ++
+ 13 files changed, 334 insertions(+), 7 deletions(-)
+ create mode 100644 frontend/src/components/ProfileEditor.jsx
+ create mode 100644 supabase/migrations/20261023000000_profile_photo_and_bio.sql
+
+diff --git a/backend/README.md b/backend/README.md
+index 89ef995..f3d2441 100644
+--- a/backend/README.md
++++ b/backend/README.md
+@@ -92,6 +92,7 @@ Health returns `{ status: "ok" }` and checks process liveness only.
+ | POST | `/api/auth/signup` | Public; validated Temple email, name, student ID, allowed redirect |
+ | POST | `/api/auth/signin` | Public; existing-account email sign-in |
+ | GET | `/api/profile/me` | Confirmed Temple user; own profile |
++| PATCH | `/api/profile/me` | Confirmed Temple user; own bio (max 500) and photo URL from their own `avatars` folder |
+ | GET | `/api/listings` | Confirmed Temple user |
+ | POST | `/api/listings` | Confirmed Temple user |
+ | GET | `/api/feed` | Confirmed Temple user |
+diff --git a/backend/src/app.ts b/backend/src/app.ts
+index 30844fd..810e660 100644
+--- a/backend/src/app.ts
++++ b/backend/src/app.ts
+@@ -20,7 +20,7 @@ app.use(cors({
+   },
+   allowedHeaders: ['Authorization', 'Content-Type'],
+   exposedHeaders: ['X-Request-Id'],
+-  methods: ['GET', 'POST', 'OPTIONS'],
++  methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+ }));
+ app.use(express.json({ limit: '100kb' }));
+ app.use((_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+diff --git a/backend/src/controllers/profile.controller.ts b/backend/src/controllers/profile.controller.ts
+index 70c6f72..6ae8170 100644
+--- a/backend/src/controllers/profile.controller.ts
++++ b/backend/src/controllers/profile.controller.ts
+@@ -1,12 +1,39 @@
+-import { getMyProfile as selectMyProfile } from '../generated/profiles.queries.js';
++import { getMyProfile as selectMyProfile, updateMyProfile as saveMyProfile } from '../generated/profiles.queries.js';
+ import type { RequestHandler } from 'express';
++import { z } from 'zod';
++import { env } from '../config/env.js';
+ import { assertAuthenticated } from '../helpers/auth.js';
+ import { HttpError } from '../helpers/errors.js';
+ import { ErrorCode } from '../types/errorCode.js';
+ 
++// Students edit their bio and photo only; name, email, student ID and role stay fixed.
++// Omitted fields are left unchanged; null clears a field.
++export const profileUpdateSchema = z.strictObject({
++  bio: z.string().trim().max(500).transform(bio => bio || null).nullable().optional(),
++  avatar_url: z.url().max(500).nullable().optional(),
++}).refine(body => body.bio !== undefined || body.avatar_url !== undefined, 'Send bio or avatar_url.');
++const avatarFileName = /^[0-9a-f-]{36}\.(?:jpg|png|webp)$/;
++
+ export const getMyProfile: RequestHandler = async (req, res) => {
+   assertAuthenticated(req);
+   const [data] = await req.db(tx => selectMyProfile.run({ publicId: req.user.id }, tx));
+   if (!data) throw new HttpError(403, ErrorCode.ProfileRequired, 'An active student profile is required.');
+   res.json({ data });
+ };
++
++export const updateMyProfile: RequestHandler = async (req, res) => {
++  assertAuthenticated(req);
++  const { bio, avatar_url: avatarUrl } = res.locals.body as z.infer<typeof profileUpdateSchema>;
++  // Photos must be files the caller uploaded to their own folder in the avatars bucket.
++  if (avatarUrl) {
++    const folder = `${env.SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/avatars/${req.user.authUserId}/`;
++    if (!avatarUrl.startsWith(folder) || !avatarFileName.test(avatarUrl.slice(folder.length))) {
++      throw new HttpError(400, ErrorCode.InvalidData, 'Upload your profile photo before saving it.');
++    }
++  }
++  const [data] = await req.db(tx => saveMyProfile.run({
++    publicId: req.user.id, setBio: bio !== undefined, bio, setAvatar: avatarUrl !== undefined, avatarUrl,
++  }, tx));
++  if (!data) throw new HttpError(403, ErrorCode.ProfileRequired, 'An active student profile is required.');
++  res.json({ data });
++};
+diff --git a/backend/src/generated/profiles.queries.ts b/backend/src/generated/profiles.queries.ts
+index 2840490..3d94d14 100644
+--- a/backend/src/generated/profiles.queries.ts
++++ b/backend/src/generated/profiles.queries.ts
+@@ -70,3 +70,47 @@ const getMyProfileIR: any = {"usedParamSet":{"publicId":true},"params":[{"name":
+ export const getMyProfile = new PreparedQuery<IGetMyProfileParams,IGetMyProfileResult>(getMyProfileIR);
+ 
+ 
++/** 'UpdateMyProfile' parameters type */
++export interface IUpdateMyProfileParams {
++  avatarUrl?: string | null | void;
++  bio?: string | null | void;
++  publicId: string;
++  setAvatar: boolean;
++  setBio: boolean;
++}
++
++/** 'UpdateMyProfile' return type */
++export interface IUpdateMyProfileResult {
++  avatar_url: string | null;
++  bio: string | null;
++  created_at: Date;
++  email: string;
++  full_name: string | null;
++  id: string;
++  role: string;
++  student_id: string | null;
++  updated_at: Date;
++}
++
++/** 'UpdateMyProfile' query type */
++export interface IUpdateMyProfileQuery {
++  params: IUpdateMyProfileParams;
++  result: IUpdateMyProfileResult;
++}
++
++const updateMyProfileIR: any = {"usedParamSet":{"setBio":true,"bio":true,"setAvatar":true,"avatarUrl":true,"publicId":true},"params":[{"name":"setBio","required":true,"transform":{"type":"scalar"},"locs":[{"a":45,"b":52}]},{"name":"bio","required":false,"transform":{"type":"scalar"},"locs":[{"a":68,"b":71}]},{"name":"setAvatar","required":true,"transform":{"type":"scalar"},"locs":[{"a":118,"b":128}]},{"name":"avatarUrl","required":false,"transform":{"type":"scalar"},"locs":[{"a":144,"b":153}]},{"name":"publicId","required":true,"transform":{"type":"scalar"},"locs":[{"a":199,"b":208}]}],"statement":"update public.profiles set\n  bio = case when :setBio!::boolean then :bio::text else bio end,\n  avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end\nwhere public_id = :publicId!\nreturning public_id as id, email, student_id, full_name, avatar_url, bio,\nrole, created_at, updated_at"};
++
++/**
++ * Query generated from SQL:
++ * ```
++ * update public.profiles set
++ *   bio = case when :setBio!::boolean then :bio::text else bio end,
++ *   avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end
++ * where public_id = :publicId!
++ * returning public_id as id, email, student_id, full_name, avatar_url, bio,
++ * role, created_at, updated_at
++ * ```
++ */
++export const updateMyProfile = new PreparedQuery<IUpdateMyProfileParams,IUpdateMyProfileResult>(updateMyProfileIR);
++
++
+diff --git a/backend/src/middleware/auth.ts b/backend/src/middleware/auth.ts
+index 1059aec..2a5f14c 100644
+--- a/backend/src/middleware/auth.ts
++++ b/backend/src/middleware/auth.ts
+@@ -32,7 +32,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
+     throw new HttpError(403, ErrorCode.ProfileRequired, 'An active student profile is required.');
+   }
+   req.user = {
+-    id: profile.public_id, internalId: profile.internal_id, email: profile.email, role: role.data,
++    id: profile.public_id, internalId: profile.internal_id, authUserId: sub, email: profile.email, role: role.data,
+     ...(profile.full_name ? { name: profile.full_name } : {}),
+   };
+   req.db = db;
+diff --git a/backend/src/routes/profile.routes.ts b/backend/src/routes/profile.routes.ts
+index 1ca5160..6f83652 100644
+--- a/backend/src/routes/profile.routes.ts
++++ b/backend/src/routes/profile.routes.ts
+@@ -1,6 +1,8 @@
+ import { Router } from 'express';
+-import { getMyProfile } from '../controllers/profile.controller.js';
++import { validate } from '../middleware/validate.js';
++import { getMyProfile, profileUpdateSchema, updateMyProfile } from '../controllers/profile.controller.js';
+ 
+ export const profileRoutes = Router();
+ 
+ profileRoutes.get('/me', getMyProfile);
++profileRoutes.patch('/me', validate(profileUpdateSchema), updateMyProfile);
+diff --git a/backend/src/types/express.d.ts b/backend/src/types/express.d.ts
+index b3af1d3..fea8314 100644
+--- a/backend/src/types/express.d.ts
++++ b/backend/src/types/express.d.ts
+@@ -4,6 +4,7 @@ import type { UserRole } from './domain.js';
+ export interface AuthUser {
+   id: string; // Public profile UUID
+   internalId: string; // bigint cast to text to avoid JavaScript precision loss
++  authUserId: string; // Supabase Auth UUID; server-only, never return it
+   email: string;
+   role: UserRole;
+   name?: string;
+diff --git a/backend/tests/api.test.ts b/backend/tests/api.test.ts
+index 5f26c4d..777b6ad 100644
+--- a/backend/tests/api.test.ts
++++ b/backend/tests/api.test.ts
+@@ -18,12 +18,13 @@ const { default: app } = await import('../src/app.js');
+ const { sql, withUser } = await import('../src/config/database.js');
+ const { feedSchema } = await import('../src/controllers/feed.controller.js');
+ const { listingSchema } = await import('../src/controllers/listings.controller.js');
++const { profileUpdateSchema } = await import('../src/controllers/profile.controller.js');
+ let server: Server;
+ let base: string;
+ 
+-async function call(path: string, token?: string, body?: unknown, headers = {}) {
++async function call(path: string, token?: string, body?: unknown, headers = {}, method = body === undefined ? 'GET' : 'POST') {
+   const response = await fetch(`${base}${path}`, {
+-    method: body === undefined ? 'GET' : 'POST',
++    method,
+     headers: {
+       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+@@ -87,12 +88,28 @@ test('domain enums preserve wire values and reject unknown cases', () => {
+   assert.equal(feedSchema.safeParse({ kind: FeedPostKind.Perk, title: 'Missing business' }).success, false);
+ });
+ 
++test('profile updates accept only bio and photo changes', () => {
++  assert.equal(profileUpdateSchema.parse({ bio: '  Hello  ' }).bio, 'Hello');
++  assert.equal(profileUpdateSchema.parse({ bio: '   ' }).bio, null);
++  assert.equal(profileUpdateSchema.parse({ avatar_url: null }).avatar_url, null);
++  assert.equal(profileUpdateSchema.safeParse({ bio: 'x'.repeat(501) }).success, false);
++  assert.equal(profileUpdateSchema.safeParse({}).success, false);
++  for (const field of ['full_name', 'student_id', 'role', 'email']) {
++    assert.equal(profileUpdateSchema.safeParse({ bio: 'Hi', [field]: 'x' }).success, false);
++  }
++});
++
+ test('health, protected routes, CORS, JSON errors and 404s', async () => {
+   assert.equal((await call('/health')).status, 200);
+   assert.equal((await call('/api/health')).status, 200);
+   for (const path of ['/api/profile/me', '/api/listings', '/api/feed']) {
+     assert.equal((await call(path)).status, 401);
+   }
++  assert.equal((await call('/api/profile/me', undefined, { bio: 'Hi' }, {}, 'PATCH')).status, 401);
++  const preflight = await fetch(`${base}/api/profile/me`, { method: 'OPTIONS', headers: {
++    Origin: 'http://localhost:5173', 'Access-Control-Request-Method': 'PATCH',
++  } });
++  assert.match(preflight.headers.get('access-control-allow-methods') ?? '', /PATCH/);
+   assert.equal((await call('/missing')).status, 404);
+   assert.equal((await call('/health', undefined, undefined, { Origin: 'https://untrusted.example' })).status, 403);
+   const allowed = await call('/health', undefined, undefined, { Origin: 'http://localhost:5173' });
+@@ -296,6 +313,59 @@ test('local Supabase: auth, ownership, validation, roles and persistence', {
+       assert.equal((await call('/api/feed', users[UserRole.Admin].token, event)).status, 201);
+       assert.equal((await call('/api/feed', users[UserRole.Admin].token, { ...event, meeting_time: 'tomorrow' })).status, 400);
+     });
++    await t.test('students update their own bio and uploaded photo only', async () => {
++      const student = users[UserRole.Student];
++      const other = users[UserRole.Admin];
++      const storage = (token: string) => createClient(url, process.env.SUPABASE_PUBLISHABLE_KEY!, {
++        auth, global: { headers: { Authorization: `Bearer ${token}` } },
++      }).storage.from('avatars');
++      const png = new Blob([Buffer.from(
++        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
++        'base64')], { type: 'image/png' });
++      const path = `${student.id}/${randomUUID()}.png`;
++      const uploaded = await storage(student.token).upload(path, png, { contentType: 'image/png' });
++      assert.ifError(uploaded.error);
++      try {
++        // Storage rules: only your own folder, only images.
++        const intruder = await storage(other.token).upload(`${student.id}/${randomUUID()}.png`, png, { contentType: 'image/png' });
++        assert(intruder.error, 'Uploading into another student folder must fail');
++        const text = await storage(student.token).upload(`${student.id}/${randomUUID()}.png`,
++          new Blob(['not an image'], { type: 'text/plain' }), { contentType: 'text/plain' });
++        assert(text.error, 'Non-image uploads must fail');
++        const removedByOther = await storage(other.token).remove([path]);
++        assert.equal(removedByOther.data?.length ?? 0, 0, 'Another student cannot delete my photo');
++
++        const photo = storage(student.token).getPublicUrl(path).data.publicUrl;
++        const saved = await call('/api/profile/me', student.token, { bio: '  Second-year CS student  ', avatar_url: photo }, {}, 'PATCH');
++        assert.equal(saved.status, 200, JSON.stringify(saved.body));
++        assert.equal(saved.body.data.bio, 'Second-year CS student');
++        assert.equal(saved.body.data.avatar_url, photo);
++        assert.equal((await fetch(photo)).status, 200, 'Saved photo URL is publicly viewable');
++        const bioOnly = await call('/api/profile/me', student.token, { bio: 'Updated bio' }, {}, 'PATCH');
++        assert.equal(bioOnly.body.data.avatar_url, photo, 'Omitted fields stay unchanged');
++
++        // Photos must come from the caller's own folder in our bucket.
++        const otherFolder = photo.replace(student.id, other.id);
++        for (const avatar_url of ['https://example.com/me.png', otherFolder, photo.replace('.png', '.gif')]) {
++          const rejected = await call('/api/profile/me', student.token, { avatar_url }, {}, 'PATCH');
++          assert.equal(rejected.status, 400, avatar_url);
++        }
++        for (const body of [{ bio: 'x'.repeat(501) }, { full_name: 'New name' }, { student_id: '123456789' }, { role: UserRole.Admin }]) {
++          assert.equal((await call('/api/profile/me', student.token, body, {}, 'PATCH')).status, 400);
++        }
++        const [stored] = await owner`select full_name, role, bio, avatar_url from public.profiles where auth_user_id = ${student.id}`;
++        assert.deepEqual(stored, { full_name: 'Test student', role: UserRole.Student, bio: 'Updated bio', avatar_url: photo });
++        const [untouched] = await owner`select bio, avatar_url from public.profiles where auth_user_id = ${other.id}`;
++        assert.deepEqual(untouched, { bio: null, avatar_url: null });
++
++        const cleared = await call('/api/profile/me', student.token, { bio: '', avatar_url: null }, {}, 'PATCH');
++        assert.equal(cleared.status, 200);
++        assert.equal(cleared.body.data.bio, null);
++        assert.equal(cleared.body.data.avatar_url, null);
++      } finally {
++        await storage(student.token).remove([path]);
++      }
++    });
+     await t.test('role changes take effect with the existing token', async () => {
+       await owner`update public.profiles set role = ${UserRole.Student} where auth_user_id = ${users[UserRole.ClubLeader].id}`;
+       assert.equal((await call('/api/feed', users[UserRole.ClubLeader].token, event)).status, 403);
+diff --git a/frontend/src/components/Profile.jsx b/frontend/src/components/Profile.jsx
+index 5584f44..22ba7b2 100644
+--- a/frontend/src/components/Profile.jsx
++++ b/frontend/src/components/Profile.jsx
+@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
+ import { Wordmark } from './Logo'
+ import { supabase } from '../lib/supabase'
+ import { apiRequest } from '../lib/api'
++import ProfileEditor from './ProfileEditor'
+ 
+ const roles = { student: 'Student', club_leader: 'Club leader', admin: 'Admin' }
+ 
+@@ -62,7 +63,9 @@ export default function Profile() {
+                 </div>
+                 <div className="p-8">
+                   <div className="grid h-24 w-24 place-items-center overflow-hidden border-2 border-ink bg-matcha font-display text-4xl font-bold">
+-                    {initials}
++                    {profile.avatar_url
++                      ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
++                      : initials}
+                   </div>
+                   <h2 className="mt-6 break-words font-display text-3xl font-extrabold">{profile.full_name || 'TUJ Student'}</h2>
+                   <span className="mt-3 inline-block border-2 border-ink bg-sky px-3 py-1 font-mono text-xs uppercase">
+@@ -90,6 +93,7 @@ export default function Profile() {
+                 <p className="mt-5 text-sm text-ink/60">Your email and student ID are private account details.</p>
+                 <button className="btn-primary mt-8" onClick={signOut}>Sign out →</button>
+               </section>
++              <ProfileEditor profile={profile} onSaved={setProfile} />
+             </div>
+           )}
+       </main>
+diff --git a/frontend/src/components/ProfileEditor.jsx b/frontend/src/components/ProfileEditor.jsx
+new file mode 100644
+index 0000000..c61a2d4
+--- /dev/null
++++ b/frontend/src/components/ProfileEditor.jsx
+@@ -0,0 +1,131 @@
++import { useEffect, useId, useState } from 'react'
++import { getSupabase } from '../lib/supabase'
++import { apiRequest } from '../lib/api'
++
++const MAX_BIO = 500
++const MAX_PHOTO_BYTES = 2 * 1024 * 1024
++const photoTypes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
++const avatarMarker = '/storage/v1/object/public/avatars/'
++
++// File path inside the avatars bucket, or null for anything else.
++function avatarPath(url) {
++  const index = url ? url.indexOf(avatarMarker) : -1
++  return index === -1 ? null : url.slice(index + avatarMarker.length)
++}
++
++export default function ProfileEditor({ profile, onSaved }) {
++  const [bio, setBio] = useState(profile.bio || '')
++  const [photo, setPhoto] = useState(null)
++  const [removePhoto, setRemovePhoto] = useState(false)
++  const [saving, setSaving] = useState(false)
++  const [message, setMessage] = useState(null)
++  const bioId = useId()
++  const photoId = useId()
++
++  // Free the local preview when it is replaced or the editor closes.
++  useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.preview) }, [photo])
++
++  const preview = photo?.preview || (removePhoto ? null : profile.avatar_url)
++  const changed = Boolean(photo) || removePhoto || bio.trim() !== (profile.bio || '')
++
++  function choosePhoto(event) {
++    const file = event.target.files?.[0]
++    event.target.value = ''
++    if (!file) return
++    if (!photoTypes[file.type]) return setMessage({ error: true, text: 'Choose a JPEG, PNG or WebP image.' })
++    if (file.size > MAX_PHOTO_BYTES) return setMessage({ error: true, text: 'Photos must be 2 MB or smaller.' })
++    setMessage(null)
++    setRemovePhoto(false)
++    setPhoto({ file, preview: URL.createObjectURL(file) })
++  }
++
++  function clearPhoto() {
++    setPhoto(null)
++    setRemovePhoto(Boolean(profile.avatar_url))
++  }
++
++  async function save(event) {
++    event.preventDefault()
++    setSaving(true)
++    setMessage(null)
++    let uploadedPath = null
++    try {
++      const storage = getSupabase().storage.from('avatars')
++      const body = { bio }
++      if (photo) {
++        const { data } = await getSupabase().auth.getSession()
++        if (!data.session) throw new Error('Please sign in again.')
++        // Storage only accepts files inside your own folder: avatars/<your Auth ID>/.
++        const path = `${data.session.user.id}/${crypto.randomUUID()}.${photoTypes[photo.file.type]}`
++        const { error } = await storage.upload(path, photo.file, { contentType: photo.file.type })
++        if (error) throw new Error('Your photo could not be uploaded. Please try again.')
++        uploadedPath = path
++        body.avatar_url = storage.getPublicUrl(path).data.publicUrl
++      } else if (removePhoto) {
++        body.avatar_url = null
++      }
++      const saved = await apiRequest('/profile/me', { method: 'PATCH', body })
++      uploadedPath = null
++      // Best effort: remove the replaced photo so old files do not pile up.
++      const oldPath = avatarPath(profile.avatar_url)
++      if ((photo || removePhoto) && oldPath) await storage.remove([oldPath])
++      onSaved(saved)
++      setBio(saved.bio || '')
++      setPhoto(null)
++      setRemovePhoto(false)
++      setMessage({ error: false, text: 'Profile saved.' })
++    } catch (error) {
++      if (uploadedPath) await getSupabase().storage.from('avatars').remove([uploadedPath])
++      setMessage({ error: true, text: error.message })
++    } finally {
++      setSaving(false)
++    }
++  }
++
++  return (
++    <form onSubmit={save} className="border-2 border-ink bg-white p-6 shadow-hard md:col-span-2 md:p-8">
++      <p className="eyebrow">02 / Edit profile</p>
++      <div className="mt-6 grid gap-8 md:grid-cols-[auto_1fr]">
++        <div>
++          <span className="eyebrow text-ink/60">Photo</span>
++          <div className="mt-3 grid h-32 w-32 place-items-center overflow-hidden border-2 border-ink bg-matcha">
++            {preview
++              ? <img src={preview} alt="Your profile photo preview" className="h-full w-full object-cover" />
++              : <span className="px-2 text-center font-mono text-xs uppercase">No photo</span>}
++          </div>
++          <div className="mt-4 flex flex-col items-start gap-2">
++            <label htmlFor={photoId} className="cursor-pointer font-mono text-xs uppercase tracking-widest underline">
++              {preview ? 'Change photo' : 'Upload photo'}
++            </label>
++            <input id={photoId} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
++              onChange={choosePhoto} disabled={saving} />
++            {preview && (
++              <button type="button" onClick={clearPhoto} disabled={saving}
++                className="font-mono text-xs uppercase tracking-widest text-cherry underline">
++                Remove photo
++              </button>
++            )}
++            <p className="text-xs text-ink/60">JPEG, PNG or WebP, up to 2 MB.</p>
++          </div>
++        </div>
++        <div>
++          <label htmlFor={bioId} className="eyebrow text-ink/60">Bio</label>
++          <textarea id={bioId} value={bio} onChange={event => setBio(event.target.value)} maxLength={MAX_BIO}
++            rows={6} disabled={saving} placeholder="Major, year, clubs, what you're looking for on campus…"
++            className="mt-3 w-full resize-y border-2 border-ink bg-paper p-4 text-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink" />
++          <p className="mt-1 text-right font-mono text-xs text-ink/60">{bio.length}/{MAX_BIO}</p>
++        </div>
++      </div>
++      <div className="mt-6 flex flex-wrap items-center gap-6">
++        <button type="submit" className="btn-primary disabled:opacity-50" disabled={saving || !changed}>
++          {saving ? 'Saving…' : 'Save profile →'}
++        </button>
++        {message && (
++          <p role={message.error ? 'alert' : 'status'} className={message.error ? 'text-cherry' : 'text-ink/70'}>
++            {message.text}
++          </p>
++        )}
++      </div>
++    </form>
++  )
++}
+diff --git a/supabase/README.md b/supabase/README.md
+index 0f142bf..aa1991c 100644
+--- a/supabase/README.md
++++ b/supabase/README.md
+@@ -49,6 +49,16 @@ confirmation enabled in Supabase Auth.
+ 
+ The table above describes backend operations under RLS, not direct browser access.
+ 
++### Profile photos (Storage)
++
++`migrations/20261023000000_profile_photo_and_bio.sql` creates the public
++`avatars` bucket (JPEG, PNG or WebP, max 2 MB). This is the one direct browser
++permission: a signed-in user may upload, read and delete files only at
++`avatars/<their Auth UUID>/<file>`. Application tables remain API-only; the
++browser saves the photo URL through `PATCH /api/profile/me`, which accepts only
++URLs inside the caller's own folder. Public bucket URLs are viewable by anyone
++who has the link; file names are random UUIDs. Bios are limited to 500 characters.
++
+ Role assignment is a trusted operation through the SQL Editor or a server using
+ the service role. Never put the service role key in the frontend. For example:
+ 
+diff --git a/supabase/migrations/20261023000000_profile_photo_and_bio.sql b/supabase/migrations/20261023000000_profile_photo_and_bio.sql
+new file mode 100644
+index 0000000..cd8a647
+--- /dev/null
++++ b/supabase/migrations/20261023000000_profile_photo_and_bio.sql
+@@ -0,0 +1,29 @@
++begin;
++
++-- Profile photos live in Supabase Storage. Application tables stay API-only:
++-- the browser uploads the image file, then saves its URL through the API,
++-- which checks the URL points into the caller's own folder.
++-- The bucket is public so <img> tags work without signed URLs; random file
++-- names keep URLs unguessable. Size and type limits are enforced by Storage.
++insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
++values ('avatars', 'avatars', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
++on conflict (id) do update set public = excluded.public,
++  file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
++
++-- Each student may only touch files directly inside a folder named by their
++-- Auth UUID: avatars/<auth uuid>/<file>. Signup already restricts Auth users to
++-- Temple emails. No UPDATE policy: uploads use new names instead of upserts.
++-- Owner SELECT is required for Storage deletes; public reads use the public URL.
++create policy avatars_owner_read on storage.objects for select to authenticated
++using (bucket_id = 'avatars' and array_length(storage.foldername(name), 1) = 1
++  and (storage.foldername(name))[1] = (select auth.uid())::text);
++create policy avatars_owner_upload on storage.objects for insert to authenticated
++with check (bucket_id = 'avatars' and array_length(storage.foldername(name), 1) = 1
++  and (storage.foldername(name))[1] = (select auth.uid())::text);
++create policy avatars_owner_delete on storage.objects for delete to authenticated
++using (bucket_id = 'avatars' and array_length(storage.foldername(name), 1) = 1
++  and (storage.foldername(name))[1] = (select auth.uid())::text);
++
++alter table public.profiles add constraint profiles_bio_length check (char_length(bio) <= 500);
++
++commit;
+diff --git a/supabase/queries/profiles.sql b/supabase/queries/profiles.sql
+index 426e859..60fba98 100644
+--- a/supabase/queries/profiles.sql
++++ b/supabase/queries/profiles.sql
+@@ -6,3 +6,11 @@ from public.profiles where auth_user_id = :authUserId!;
+ select public_id as id, email, student_id, full_name, avatar_url, bio,
+ role, created_at, updated_at
+ from public.profiles where public_id = :publicId!;
++
++/* @name UpdateMyProfile */
++update public.profiles set
++  bio = case when :setBio!::boolean then :bio::text else bio end,
++  avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end
++where public_id = :publicId!
++returning public_id as id, email, student_id, full_name, avatar_url, bio,
++role, created_at, updated_at;
+-- 
+2.43.0
+

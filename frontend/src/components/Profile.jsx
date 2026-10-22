@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Wordmark } from './Logo'
 import { supabase } from '../lib/supabase'
 import { apiRequest } from '../lib/api'
+import ProfileEditor from './ProfileEditor'
+import ProfilePhoto from './ProfilePhoto'
 
 const roles = { student: 'Student', club_leader: 'Club leader', admin: 'Admin' }
 
@@ -61,9 +63,7 @@ export default function Profile() {
                   <span className="font-mono text-xs">TUJ / TOKYO</span>
                 </div>
                 <div className="p-8">
-                  <div className="grid h-24 w-24 place-items-center overflow-hidden border-2 border-ink bg-matcha font-display text-4xl font-bold">
-                    {initials}
-                  </div>
+                  <ProfilePhoto profile={profile} initials={initials} onSaved={setProfile} />
                   <h2 className="mt-6 break-words font-display text-3xl font-extrabold">{profile.full_name || 'TUJ Student'}</h2>
                   <span className="mt-3 inline-block border-2 border-ink bg-sky px-3 py-1 font-mono text-xs uppercase">
                     {roles[profile.role] || profile.role}
@@ -90,6 +90,7 @@ export default function Profile() {
                 <p className="mt-5 text-sm text-ink/60">Your email and student ID are private account details.</p>
                 <button className="btn-primary mt-8" onClick={signOut}>Sign out →</button>
               </section>
+              <ProfileEditor profile={profile} onSaved={setProfile} />
             </div>
           )}
       </main>

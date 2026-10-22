@@ -20,7 +20,7 @@ app.use(cors({
   },
   allowedHeaders: ['Authorization', 'Content-Type'],
   exposedHeaders: ['X-Request-Id'],
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
 }));
 app.use(express.json({ limit: '100kb' }));
 app.use((_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });

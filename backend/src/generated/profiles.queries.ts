@@ -70,3 +70,47 @@ const getMyProfileIR: any = {"usedParamSet":{"publicId":true},"params":[{"name":
 export const getMyProfile = new PreparedQuery<IGetMyProfileParams,IGetMyProfileResult>(getMyProfileIR);
 
 
+/** 'UpdateMyProfile' parameters type */
+export interface IUpdateMyProfileParams {
+  avatarUrl?: string | null | void;
+  bio?: string | null | void;
+  publicId: string;
+  setAvatar: boolean;
+  setBio: boolean;
+}
+
+/** 'UpdateMyProfile' return type */
+export interface IUpdateMyProfileResult {
+  avatar_url: string | null;
+  bio: string | null;
+  created_at: Date;
+  email: string;
+  full_name: string | null;
+  id: string;
+  role: string;
+  student_id: string | null;
+  updated_at: Date;
+}
+
+/** 'UpdateMyProfile' query type */
+export interface IUpdateMyProfileQuery {
+  params: IUpdateMyProfileParams;
+  result: IUpdateMyProfileResult;
+}
+
+const updateMyProfileIR: any = {"usedParamSet":{"setBio":true,"bio":true,"setAvatar":true,"avatarUrl":true,"publicId":true},"params":[{"name":"setBio","required":true,"transform":{"type":"scalar"},"locs":[{"a":45,"b":52}]},{"name":"bio","required":false,"transform":{"type":"scalar"},"locs":[{"a":68,"b":71}]},{"name":"setAvatar","required":true,"transform":{"type":"scalar"},"locs":[{"a":118,"b":128}]},{"name":"avatarUrl","required":false,"transform":{"type":"scalar"},"locs":[{"a":144,"b":153}]},{"name":"publicId","required":true,"transform":{"type":"scalar"},"locs":[{"a":199,"b":208}]}],"statement":"update public.profiles set\n  bio = case when :setBio!::boolean then :bio::text else bio end,\n  avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end\nwhere public_id = :publicId!\nreturning public_id as id, email, student_id, full_name, avatar_url, bio,\nrole, created_at, updated_at"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * update public.profiles set
+ *   bio = case when :setBio!::boolean then :bio::text else bio end,
+ *   avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end
+ * where public_id = :publicId!
+ * returning public_id as id, email, student_id, full_name, avatar_url, bio,
+ * role, created_at, updated_at
+ * ```
+ */
+export const updateMyProfile = new PreparedQuery<IUpdateMyProfileParams,IUpdateMyProfileResult>(updateMyProfileIR);
+
+
