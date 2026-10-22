@@ -159,6 +159,10 @@ only for Auth; do not grant browser roles application-table access.
 
 ## Test scope
 
+Keep API tests in separate files by feature (`auth.test.ts`, `profile.test.ts`,
+`listings.test.ts`, `feed.test.ts`, and `campus.test.ts`). Put shared server and
+local fixture setup in `tests/helpers/`; do not collect all API tests into one file.
+
 Test behavior we own: API contracts, business validation, authorization/RLS,
 transaction isolation, error mapping, response privacy, logging, and tooling
 wrappers. Do not test third-party library internals or duplicate TypeScript's

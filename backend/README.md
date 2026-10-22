@@ -96,6 +96,10 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | POST | `/api/listings` | Confirmed Temple user |
 | GET | `/api/feed` | Confirmed Temple user |
 | POST | `/api/feed` | Club leader/admin; perks require admin |
+| GET | `/api/campus` | Confirmed Temple user; clubs, events, posts, own saved posts, listing suggestions |
+| PUT | `/api/campus/actions/:action/:id` | Confirmed Temple user; idempotent follow/like/save/rsvp, `{ active: boolean }` |
+| POST | `/api/campus/clubs/:clubId/posts` | Owning club leader/admin; `{ text, eventId? }` |
+| POST | `/api/campus/clubs/:clubId/events` | Owning club leader/admin; event details |
 
 Database tables use internal bigint primary/foreign keys and a unique `public_id`
 UUID. API responses expose the record UUID as `id`. Listings and feed posts
@@ -192,7 +196,16 @@ npm test
 npm run test:integration
 ```
 
-The integration test requires local Supabase with the initial migration applied,
+Tests are split by feature into `auth`, `profile`, `listings`, `feed`, and
+`campus` files. HTTP behavior, domain validation, database access, and logging
+have separate files. Shared setup and fixture cleanup live in `tests/helpers/`.
+To run one feature against local Supabase, use, for example:
+
+```sh
+RUN_INTEGRATION=1 node --import tsx --test tests/campus.test.ts
+```
+
+The integration tests require local Supabase with all migrations applied,
 `SQL_GENERATION_DATABASE_URL` in `.env`, and `[auth.email].enable_confirmations`
 left disabled (as committed) so test accounts sign up with a session. It also
 reads the sign-up email from Mailpit. It creates temporary accounts, checks auth, validation, role changes, minimal
@@ -261,3 +274,45 @@ continues to use its restricted `DATABASE_URL`, transactions, and RLS. Vercel on
 runs `npm run build`; it does not generate types or need the local tooling URL.
 PgTyped parameterizes query values; it does not replace Zod or authorization.
 TypeScript is pinned to 5.9 because PgTyped CLI currently declares support through 5.
+
+## Campus communities
+
+Apply the new `20261022085736_campus_communities.sql` migration after the initial
+schema; do not reset an existing database. All application access remains behind
+`requireAuth` and transaction-local `hootus_api` RLS. Club publishing checks the
+club's assigned leader as well as the current profile role. Event attachments
+must belong to the same club. API IDs are public UUIDs.
+
+`GET /api/campus?limit=100&offset=0` returns `clubs`, `events`, `posts`,
+`savedPosts`, and `listings`. Feed paging uses the existing 1–100 limit;
+club/event directories and saved posts are currently capped at 100, and listing
+suggestions at six. Saved posts are fetched separately so they do not disappear
+when they fall outside the recent feed. Account-specific responses use
+`Cache-Control: private, no-store`.
+
+`PUT /api/campus/actions/:action/:id` accepts `follow`, `like`, `save`, or
+`rsvp`, and a strict `{ "active": true|false }` body. Repeated requests do not
+create duplicate relationships. User identity comes from the authenticated
+transaction, never a request field. Save/follow/like/RSVP rows are private to the
+owner; two private functions expose only aggregate follower and like counts to
+confirmed campus members. Browser table/sequence privileges remain revoked.
+
+Event creation takes `title`, `starts_at`, `ends_at`, `location`, `event_type`,
+and optional `price`, `poster`, `description`, and `note`. Timestamps must include
+a timezone and the end must follow the start. Poster styles are `film`, `photo`,
+and `outdoor`. There is no capacity limit, ticket purchase, or event-management
+UI in this version.
+
+For local development, run `npm run db:seed` after migrations. The runner refuses
+non-local database hosts and uses `SQL_GENERATION_DATABASE_URL`; it is never a
+production seed command. The repeatable seed adds five sample clubs, three
+events, five posts, and three listings, along with the local accounts:
+
+- `hootus-demo@temple.edu`: student Hana Tanaka, following Film and Outdoor clubs.
+- `hootus-clubs@temple.edu`: club leader assigned to the five sample clubs.
+
+Use the existing email sign-in form and follow the link in local Mailpit. No
+password is set for either account. These are illustrative fixtures, not verified
+TUJ organization or housing records. The browser checks for updates every 15
+seconds while visible, and queues new posts behind a Show updates button. This
+is authenticated API polling, not a Supabase Realtime subscription.
