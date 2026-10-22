@@ -99,3 +99,25 @@ Messages currently store plain text, not application-layer encrypted content.
 References: [Auth profile triggers](https://supabase.com/docs/guides/auth/managing-user-data),
 [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).
+
+## Campus schema and fixtures
+
+`migrations/20261022085736_campus_communities.sql` is an additive upgrade after
+the initial migration. It adds clubs, club events/posts, and private follow,
+like, save, and RSVP relationships. It also labels seeded listings with
+`is_sample`. Primary keys remain internal bigints with public UUIDs at the API.
+All seven new tables enable RLS, revoke browser access, and index foreign keys.
+Only a club's assigned leader or an admin can publish on its behalf.
+
+The two `private.club_*_count` functions deliberately use SECURITY DEFINER to
+return aggregate counts without exposing other students' relationship rows.
+They check current confirmed membership, fix `search_path`, and grant execution
+only to `hootus_api`. They return no user identities or private profile fields.
+
+The local-only `seed.sql` now includes five illustrative clubs, three events,
+five posts, and three marketplace/housing listings. It creates a separate sample
+club leader (`hootus-clubs@temple.edu`); Hana remains a student. Stable UUIDs and
+`ON CONFLICT DO NOTHING` keep content repeatable without overwriting records.
+From `backend/`, run `npm run db:seed` to seed an existing local database without
+resetting it. Never run this seed on a hosted project: it provisions local Auth
+fixtures and a well-known local server-role password.

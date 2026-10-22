@@ -15,6 +15,7 @@
     "sql:generate": "node scripts/sql.mjs",
     "sql:check": "node scripts/sql.mjs --check",
     "sql:watch": "node scripts/sql.mjs --watch",
+    "db:seed": "node scripts/apply-local-sql.mjs ../supabase/seed.sql",
     "predev": "npm run sql:generate",
     "check": "npm run sql:check && npm run build && npm test"
   },
