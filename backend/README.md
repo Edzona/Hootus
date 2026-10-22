@@ -56,26 +56,37 @@ On macOS, AirPlay may occupy port 5000. In that case set `PORT=5001` in
 `backend/.env` and `API_PROXY_TARGET=http://127.0.0.1:5001` in `frontend/.env`.
 
 The signup form calls `/api/auth/signup`. The backend validates the fields and
-requests a Supabase magic link, passing `full_name` and `student_id` metadata for
-the existing profile trigger. Responses never reveal whether an email or student
-ID is already registered: existing emails receive a normal sign-in link, and a
+requests a Supabase email code, passing `full_name` and `student_id` metadata for
+the existing profile trigger. Existing emails receive a normal sign-in code, and a
 duplicate student ID fails with a generic `AUTH_REQUEST_FAILED` error.
 Postgres enforces unique student IDs and case-insensitive unique profile emails.
 The "Already registered? Sign in" option only asks for an email and calls
 `/api/auth/signin` without trying to create a new account.
-Supabase must allow `http://localhost:5173` and `http://127.0.0.1:5173` as Auth
-redirect URLs. These are included in `supabase/config.toml`; an already-running
-local Supabase stack must be restarted to load config changes. Local Auth emails
-appear in Supabase's local Mailpit inbox rather than a real mailbox.
-After following the link, the frontend opens `#/profile`, loads
-`/api/profile/me`, and shows a private campus card and account details.
+The browser verifies the six-digit code with Supabase Auth (`verifyOtp`, type
+`email`) in the existing tab. A successful verification opens `#/dashboard`.
+Invalid or expired codes stay on the form; users can request another code after
+60 seconds or change the email. No redirect URL is accepted by these endpoints.
+The private campus card and account details remain available at `#/profile`.
+
+Local email templates are configured in `supabase/config.toml` and
+`supabase/templates/sign-in-code.html`. Restart an already-running local stack
+with `npx supabase stop` then `npx supabase start` to load them; **do not use
+`--no-backup` or reset the database**. Local codes expire after 10 minutes.
+
+For a hosted Supabase project, copy the committed HTML into **Authentication →
+Email Templates → Magic Link and Confirm signup**, set email OTP length to six
+and expiry to 600 seconds, and keep email confirmation enabled. Local config
+files do not update hosted Auth settings. Configure SMTP and production rate
+limits there as well. Legacy email links already issued remain supported by the
+frontend until they expire.
 The waitlist form remains a UI prototype.
 
 ### Local sign-in
 
-Local sign-in works like production: submit your email on `#/signup` and open
-the link from Supabase's local Mailpit inbox (`MAILPIT_URL` in
-`npx supabase status -o env`; `http://127.0.0.1:54324` with the committed config).
+Submit your email on `#/signup`, read the code from Supabase's local Mailpit inbox
+(`MAILPIT_URL` in
+`npx supabase status -o env`; `http://127.0.0.1:54324` with the committed config),
+and enter it in the same Hootus tab.
 `supabase/seed.sql` adds a demo student (`hootus-demo@temple.edu`) for the
 sign-in option; on an existing database apply it in the SQL Editor (safe to
 rerun, do not reset your database). Keep this fixture out of production.
@@ -89,14 +100,18 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | Method | Path | Access |
 | --- | --- | --- |
 | GET | `/health`, `/api/health` | Public |
-| POST | `/api/auth/signup` | Public; validated Temple email, name, student ID, allowed redirect |
-| POST | `/api/auth/signin` | Public; existing-account email sign-in |
+| POST | `/api/auth/signup` | Public; validated Temple email, name, student ID; requests an email code |
+| POST | `/api/auth/signin` | Public; existing-account email-code request |
 | GET | `/api/profile/me` | Confirmed Temple user; own profile |
 | PATCH | `/api/profile/me` | Confirmed Temple user; own bio (max 500) and photo URL from their own `avatars` folder |
 | GET | `/api/listings` | Confirmed Temple user |
 | POST | `/api/listings` | Confirmed Temple user |
 | GET | `/api/feed` | Confirmed Temple user |
 | POST | `/api/feed` | Club leader/admin; perks require admin |
+| GET | `/api/campus` | Confirmed Temple user; clubs, events, posts, own saved posts, listing suggestions |
+| PUT | `/api/campus/actions/:action/:id` | Confirmed Temple user; idempotent follow/like/save/rsvp, `{ active: boolean }` |
+| POST | `/api/campus/clubs/:clubId/posts` | Owning club leader/admin; `{ text, eventId? }` |
+| POST | `/api/campus/clubs/:clubId/events` | Owning club leader/admin; event details |
 
 Database tables use internal bigint primary/foreign keys and a unique `public_id`
 UUID. API responses expose the record UUID as `id`. Listings and feed posts
@@ -193,7 +208,16 @@ npm test
 npm run test:integration
 ```
 
-The integration test requires local Supabase with the initial migration applied,
+Tests are split by feature into `auth`, `profile`, `listings`, `feed`, and
+`campus` files. HTTP behavior, domain validation, database access, and logging
+have separate files. Shared setup and fixture cleanup live in `tests/helpers/`.
+To run one feature against local Supabase, use, for example:
+
+```sh
+RUN_INTEGRATION=1 node --import tsx --test tests/campus.test.ts
+```
+
+The integration tests require local Supabase with all migrations applied,
 `SQL_GENERATION_DATABASE_URL` in `.env`, and `[auth.email].enable_confirmations`
 left disabled (as committed) so test accounts sign up with a session. It also
 reads the sign-up email from Mailpit. It creates temporary accounts, checks auth, validation, role changes, minimal
@@ -242,7 +266,7 @@ stack. The current local config still has confirmations disabled.
 
 References: [Vercel Express](https://vercel.com/docs/frameworks/backend/express),
 [Supabase token verification](https://supabase.com/docs/reference/javascript/auth-getclaims),
-[email-link sign-in](https://supabase.com/docs/reference/javascript/auth-signinwithotp).
+[email-code requests](https://supabase.com/docs/reference/javascript/auth-signinwithotp).
 
 ## Typed SQL
 
@@ -262,3 +286,45 @@ continues to use its restricted `DATABASE_URL`, transactions, and RLS. Vercel on
 runs `npm run build`; it does not generate types or need the local tooling URL.
 PgTyped parameterizes query values; it does not replace Zod or authorization.
 TypeScript is pinned to 5.9 because PgTyped CLI currently declares support through 5.
+
+## Campus communities
+
+Apply the new `20261022085736_campus_communities.sql` migration after the initial
+schema; do not reset an existing database. All application access remains behind
+`requireAuth` and transaction-local `hootus_api` RLS. Club publishing checks the
+club's assigned leader as well as the current profile role. Event attachments
+must belong to the same club. API IDs are public UUIDs.
+
+`GET /api/campus?limit=100&offset=0` returns `clubs`, `events`, `posts`,
+`savedPosts`, and `listings`. Feed paging uses the existing 1–100 limit;
+club/event directories and saved posts are currently capped at 100, and listing
+suggestions at six. Saved posts are fetched separately so they do not disappear
+when they fall outside the recent feed. Account-specific responses use
+`Cache-Control: private, no-store`.
+
+`PUT /api/campus/actions/:action/:id` accepts `follow`, `like`, `save`, or
+`rsvp`, and a strict `{ "active": true|false }` body. Repeated requests do not
+create duplicate relationships. User identity comes from the authenticated
+transaction, never a request field. Save/follow/like/RSVP rows are private to the
+owner; two private functions expose only aggregate follower and like counts to
+confirmed campus members. Browser table/sequence privileges remain revoked.
+
+Event creation takes `title`, `starts_at`, `ends_at`, `location`, `event_type`,
+and optional `price`, `poster`, `description`, and `note`. Timestamps must include
+a timezone and the end must follow the start. Poster styles are `film`, `photo`,
+and `outdoor`. There is no capacity limit, ticket purchase, or event-management
+UI in this version.
+
+For local development, run `npm run db:seed` after migrations. The runner refuses
+non-local database hosts and uses `SQL_GENERATION_DATABASE_URL`; it is never a
+production seed command. The repeatable seed adds five sample clubs, three
+events, five posts, and three listings, along with the local accounts:
+
+- `hootus-demo@temple.edu`: student Hana Tanaka, following Film and Outdoor clubs.
+- `hootus-clubs@temple.edu`: club leader assigned to the five sample clubs.
+
+Use the existing email sign-in form and follow the link in local Mailpit. No
+password is set for either account. These are illustrative fixtures, not verified
+TUJ organization or housing records. The browser checks for updates every 15
+seconds while visible, and queues new posts behind a Show updates button. This
+is authenticated API polling, not a Supabase Realtime subscription.

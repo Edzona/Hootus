@@ -9,11 +9,8 @@ export default function AccountStatus() {
 
   useEffect(() => {
     if (!supabase) return
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, next) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next)
-      if (next && event === 'SIGNED_IN' && /access_token=|\/signup/.test(window.location.hash)) {
-        window.location.hash = '/profile'
-      }
     })
     return () => subscription.unsubscribe()
   }, [])

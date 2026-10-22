@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { Wordmark } from './Logo'
 import { apiRequest } from '../lib/api'
+import CodeVerification from './CodeVerification'
 
 const DOMAIN = '@temple.edu'
 const TEMPLE_EMAIL = /^[a-z0-9._%+-]+@temple\.edu$/
@@ -23,6 +24,18 @@ export default function SignUp() {
   const [status, setStatus] = useState('idle')
   const [errors, setErrors] = useState({})
   const [signingIn, setSigningIn] = useState(false)
+  const [codeSent, setCodeSent] = useState(false)
+
+  async function sendCode() {
+    await apiRequest(signingIn ? '/auth/signin' : '/auth/signup', {
+      method: 'POST',
+      authenticated: false,
+      body: {
+        email: values.email.trim().toLowerCase(),
+        ...(!signingIn ? { name: values.name.trim(), studentId: values.studentId.trim() } : {}),
+      },
+    })
+  }
 
   function validate(v) {
     const errs = {}
@@ -43,18 +56,11 @@ export default function SignUp() {
     }
     setStatus('sending')
     try {
-      await apiRequest(signingIn ? '/auth/signin' : '/auth/signup', {
-        method: 'POST',
-        authenticated: false,
-        body: {
-          email: values.email.trim().toLowerCase(),
-          redirectTo: window.location.origin,
-          ...(!signingIn ? { name: values.name.trim(), studentId: values.studentId.trim() } : {}),
-        },
-      })
-      setStatus('success')
+      await sendCode()
+      setCodeSent(true)
+      setStatus('idle')
     } catch (error) {
-      setErrors({ form: error.message || 'Unable to send your sign-in link. Please try again.' })
+      setErrors({ form: error.message || 'Unable to send your sign-in code. Please try again.' })
       setStatus('error')
     }
   }
@@ -95,18 +101,9 @@ export default function SignUp() {
             marketplace closed to campus.
           </p>
 
-          {status === 'success' ? (
-            <div
-              role="status"
-              className="rise mt-10 flex items-center gap-3 border-2 border-ink bg-sun px-4 py-3.5 font-mono text-sm"
-              style={{ '--d': '300ms' }}
-            >
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink text-paper">✓</span>
-              <span>
-                {signingIn ? 'If you have an account, check ' : 'Check '}
-                <strong>{values.email.trim()}</strong> for your sign-in link.
-              </span>
-            </div>
+          {codeSent ? (
+            <CodeVerification email={values.email.trim().toLowerCase()} signingIn={signingIn}
+              resend={sendCode} onChangeEmail={() => { setCodeSent(false); setErrors({}); setStatus('idle') }} />
           ) : (
             <form
               onSubmit={handleSubmit}
@@ -129,6 +126,7 @@ export default function SignUp() {
                       autoComplete={f.autoComplete}
                       placeholder={f.placeholder}
                       value={values[f.key]}
+                      disabled={status === 'sending'}
                       onChange={setField(f.key)}
                       aria-invalid={!!err}
                       aria-describedby={err ? `${fieldId}-error` : undefined}
@@ -144,18 +142,18 @@ export default function SignUp() {
               })}
               {errors.form && <p role="alert" className="mt-4 text-sm text-cherry">{errors.form}</p>}
               <button type="submit" disabled={status === 'sending'} className="btn-primary mt-7 w-full disabled:opacity-50">
-                {status === 'sending' ? 'Sending…' : 'Send sign-in link →'}
+                {status === 'sending' ? 'Sending…' : 'Send sign-in code'}
               </button>
             </form>
           )}
 
-          <button type="button" className="mt-6 font-mono text-xs underline" disabled={status === 'sending'} onClick={() => {
+          {!codeSent && <button type="button" className="mt-6 font-mono text-xs underline" disabled={status === 'sending'} onClick={() => {
             setSigningIn(!signingIn)
             setErrors({})
             setStatus('idle')
           }}>
             {signingIn ? 'New here? Create an account' : 'Already registered? Sign in'}
-          </button>
+          </button>}
 
           {import.meta.env.DEV && (
             <p className="mt-6 text-sm text-ink/70">

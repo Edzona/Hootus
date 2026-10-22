@@ -2,7 +2,7 @@ import { Wordmark } from './Logo'
 
 const links = [
   ['Marketplace', '#feeds'],
-  ['Clubs & Perks', '#community'],
+  ['Clubs & Orgs', '#/clubs'],
   ['Why HUS', '#why'],
   ['How it works', '#how'],
 ]
