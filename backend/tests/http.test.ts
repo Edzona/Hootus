@@ -12,6 +12,11 @@ test('health, protected routes, CORS, JSON errors and 404s', async () => {
   for (const path of ['/api/profile/me', '/api/listings', '/api/feed', '/api/campus']) {
     assert.equal((await call(path)).status, 401);
   }
+  assert.equal((await call('/api/profile/me', undefined, { bio: 'Hi' }, {}, 'PATCH')).status, 401);
+  const preflight = await fetch(`${api.base}/api/profile/me`, { method: 'OPTIONS', headers: {
+    Origin: 'http://localhost:5173', 'Access-Control-Request-Method': 'PATCH',
+  } });
+  assert.match(preflight.headers.get('access-control-allow-methods') ?? '', /PATCH/);
   assert.equal((await call('/missing')).status, 404);
   assert.equal((await call('/health', undefined, undefined, { Origin: 'https://untrusted.example' })).status, 403);
   const allowed = await call('/health', undefined, undefined, { Origin: 'http://localhost:5173' });

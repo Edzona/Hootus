@@ -92,6 +92,7 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | POST | `/api/auth/signup` | Public; validated Temple email, name, student ID, allowed redirect |
 | POST | `/api/auth/signin` | Public; existing-account email sign-in |
 | GET | `/api/profile/me` | Confirmed Temple user; own profile |
+| PATCH | `/api/profile/me` | Confirmed Temple user; own bio (max 500) and photo URL from their own `avatars` folder |
 | GET | `/api/listings` | Confirmed Temple user |
 | POST | `/api/listings` | Confirmed Temple user |
 | GET | `/api/feed` | Confirmed Temple user |
