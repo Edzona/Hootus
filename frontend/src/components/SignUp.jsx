@@ -1,5 +1,7 @@
 import { useId, useState } from 'react'
 import { Wordmark } from './Logo'
+import { apiRequest } from '../lib/api'
+import CodeVerification from './CodeVerification'
 
 const DOMAIN = '@temple.edu'
 const TEMPLE_EMAIL = /^[a-z0-9._%+-]+@temple\.edu$/
@@ -21,21 +23,46 @@ export default function SignUp() {
   const [values, setValues] = useState({ name: '', studentId: '', email: '' })
   const [status, setStatus] = useState('idle')
   const [errors, setErrors] = useState({})
+  const [signingIn, setSigningIn] = useState(false)
+  const [codeSent, setCodeSent] = useState(false)
+
+  async function sendCode() {
+    await apiRequest(signingIn ? '/auth/signin' : '/auth/signup', {
+      method: 'POST',
+      authenticated: false,
+      body: {
+        email: values.email.trim().toLowerCase(),
+        ...(!signingIn ? { name: values.name.trim(), studentId: values.studentId.trim() } : {}),
+      },
+    })
+  }
 
   function validate(v) {
     const errs = {}
-    if (!v.name.trim()) errs.name = 'Enter your full name.'
-    if (!STUDENT_ID.test(v.studentId.trim())) errs.studentId = 'Enter your 9-digit student ID.'
+    if (!signingIn && !v.name.trim()) errs.name = 'Enter your full name.'
+    if (!signingIn && !STUDENT_ID.test(v.studentId.trim())) errs.studentId = 'Enter your 9-digit student ID.'
     if (!TEMPLE_EMAIL.test(v.email.trim().toLowerCase()))
       errs.email = `Use your ${DOMAIN} email — HUS is for verified Temple students only.`
     return errs
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     const errs = validate(values)
     setErrors(errs)
-    setStatus(Object.keys(errs).length ? 'error' : 'success')
+    if (Object.keys(errs).length) {
+      setStatus('error')
+      return
+    }
+    setStatus('sending')
+    try {
+      await sendCode()
+      setCodeSent(true)
+      setStatus('idle')
+    } catch (error) {
+      setErrors({ form: error.message || 'Unable to send your sign-in code. Please try again.' })
+      setStatus('error')
+    }
   }
 
   function setField(key) {
@@ -60,7 +87,7 @@ export default function SignUp() {
 
       <main className="relative mx-auto flex max-w-7xl justify-center px-5 py-16 md:px-8 lg:py-24">
         <div className="w-full max-w-lg">
-          <p className="rise eyebrow text-cherry">Create account</p>
+          <p className="rise eyebrow text-cherry">{signingIn ? 'Welcome back' : 'Create account'}</p>
           <h1
             className="rise mt-4 font-display text-[clamp(2.5rem,6vw,4.5rem)] font-extrabold leading-[0.95] tracking-[-0.035em]"
             style={{ '--d': '100ms' }}
@@ -74,17 +101,9 @@ export default function SignUp() {
             marketplace closed to campus.
           </p>
 
-          {status === 'success' ? (
-            <div
-              role="status"
-              className="rise mt-10 flex items-center gap-3 border-2 border-ink bg-sun px-4 py-3.5 font-mono text-sm"
-              style={{ '--d': '300ms' }}
-            >
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink text-paper">✓</span>
-              <span>
-                Account created. We sent a verification link to <strong>{values.email.trim()}</strong>.
-              </span>
-            </div>
+          {codeSent ? (
+            <CodeVerification email={values.email.trim().toLowerCase()} signingIn={signingIn}
+              resend={sendCode} onChangeEmail={() => { setCodeSent(false); setErrors({}); setStatus('idle') }} />
           ) : (
             <form
               onSubmit={handleSubmit}
@@ -92,7 +111,7 @@ export default function SignUp() {
               className="rise mt-10 border-2 border-ink bg-white p-6 shadow-hard sm:p-8"
               style={{ '--d': '300ms' }}
             >
-              {fields.map((f) => {
+              {fields.filter(f => !signingIn || f.key === 'email').map((f) => {
                 const fieldId = `${id}-${f.key}`
                 const err = errors[f.key]
                 return (
@@ -107,6 +126,7 @@ export default function SignUp() {
                       autoComplete={f.autoComplete}
                       placeholder={f.placeholder}
                       value={values[f.key]}
+                      disabled={status === 'sending'}
                       onChange={setField(f.key)}
                       aria-invalid={!!err}
                       aria-describedby={err ? `${fieldId}-error` : undefined}
@@ -120,10 +140,25 @@ export default function SignUp() {
                   </div>
                 )
               })}
-              <button type="submit" className="btn-primary mt-7 w-full">
-                Create account →
+              {errors.form && <p role="alert" className="mt-4 text-sm text-cherry">{errors.form}</p>}
+              <button type="submit" disabled={status === 'sending'} className="btn-primary mt-7 w-full disabled:opacity-50">
+                {status === 'sending' ? 'Sending…' : 'Send sign-in code'}
               </button>
             </form>
+          )}
+
+          {!codeSent && <button type="button" className="mt-6 font-mono text-xs underline" disabled={status === 'sending'} onClick={() => {
+            setSigningIn(!signingIn)
+            setErrors({})
+            setStatus('idle')
+          }}>
+            {signingIn ? 'New here? Create an account' : 'Already registered? Sign in'}
+          </button>}
+
+          {import.meta.env.DEV && (
+            <p className="mt-6 text-sm text-ink/70">
+              Local preview: open sign-in emails in <a className="underline" href="http://127.0.0.1:54324" target="_blank" rel="noreferrer">Mailpit</a>.
+            </p>
           )}
 
           <p className="rise mt-4 font-mono text-[11px] uppercase tracking-widest text-ink/50" style={{ '--d': '400ms' }}>
