@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 80px;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  ::selection {
+    @apply bg-cherry text-paper;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap border-2 border-ink bg-cherry px-5 py-3 font-mono text-xs font-bold uppercase tracking-widest text-paper shadow-hard transition duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard-lg active:translate-x-0.5 active:translate-y-0.5 active:shadow-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink;
+  }
+  .btn-ink {
+    @apply btn-primary bg-ink shadow-hard-paper hover:shadow-hard-paper;
+  }
+  .eyebrow {
+    @apply font-mono text-xs uppercase tracking-[0.2em];
+  }
+  .link-underline {
+    background: linear-gradient(currentColor, currentColor) left bottom / 0% 2px no-repeat;
+    transition: background-size 0.25s ease;
+  }
+  .link-underline:hover {
+    background-size: 100% 2px;
+  }
+}
+
+.grain::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.08;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.rise {
+  animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms) backwards;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 24px;
+  }
+}
+
+.flyer {
+  rotate: var(--r, 0deg);
+  transition: rotate 0.3s ease, translate 0.3s ease;
+  animation: drop 0.9s cubic-bezier(0.2, 0.8, 0.25, 1.15) var(--d, 0ms) backwards;
+}
+.flyer:hover {
+  rotate: 0deg;
+  translate: 0 -8px;
+  z-index: 20;
+}
+@keyframes drop {
+  from {
+    opacity: 0;
+    translate: 0 -48px;
+    rotate: 0deg;
+  }
+}
+
+.marquee {
+  animation: marquee 45s linear infinite;
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.spin-slow {
+  animation: spin 20s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
