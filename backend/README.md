@@ -67,8 +67,8 @@ Supabase must allow `http://localhost:5173` and `http://127.0.0.1:5173` as Auth
 redirect URLs. These are included in `supabase/config.toml`; an already-running
 local Supabase stack must be restarted to load config changes. Local Auth emails
 appear in Supabase's local Mailpit inbox rather than a real mailbox.
-After following the link, the frontend opens `#/profile`, loads
-`/api/profile/me`, and shows a private campus card and account details.
+After following the link, the frontend opens `#/dashboard`. The private campus
+card and account details remain available at `#/profile`.
 The waitlist form remains a UI prototype.
 
 ### Local sign-in

@@ -12,6 +12,8 @@ import Footer from './components/Footer'
 import AccountStatus from './components/AccountStatus'
 import Profile from './components/Profile'
 import Campus from './components/campus/Campus'
+import { supabase, signInCallbackPending } from './lib/supabase'
+import { createDashboardRedirect } from './lib/authRedirect'
 
 export default function App() {
   const [hash, setHash] = useState(() => window.location.hash)
@@ -20,6 +22,17 @@ export default function App() {
     const onHashChange = () => setHash(window.location.hash)
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  useEffect(() => {
+    if (!supabase) return
+    const redirect = createDashboardRedirect({
+      callbackPending: signInCallbackPending,
+      getHash: () => window.location.hash,
+      navigate: (nextHash) => { window.location.hash = nextHash },
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(redirect)
+    return () => subscription.unsubscribe()
   }, [])
 
   if (hash.startsWith('#/profile')) return <Profile />

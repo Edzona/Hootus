@@ -1,10 +1,14 @@
 # HUS frontend
 
 Run `npm install` and `npm run dev` from this directory. Use `npm run build`
-for production assets and `npm run lint` for ESLint. Run the API in `backend/`
+for production assets, `npm run lint` for ESLint, and `npm test` for auth redirect
+regression tests. Run the API in `backend/`
 and configure the Vite API proxy as described in its README.
 
 ## Campus
+
+Successful sign-in opens `/#/dashboard`, including email-link callbacks. Restoring
+an existing session preserves club, event, and profile links.
 
 - `/#/clubs`: Following, Discover, and Events feeds, search, and interest filters.
 - `/#/clubs/:id`: club profile. IDs are UUIDs; seeded club slugs such as `film` also work.
