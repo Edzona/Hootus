@@ -31,6 +31,17 @@ role escalation, ownership, feed permissions, message privacy, unconfirmed and
 anonymous access, and publication membership; fixtures roll back. This does not
 test live WebSocket delivery, which requires a connected client.
 
+## Email sign-in codes
+
+`config.toml` uses `templates/sign-in-code.html` for both magic-link and signup
+confirmation emails. These contain `{{ .Token }}` only; users enter the six-digit
+code in Hootus. OTPs expire after 600 seconds. Restart the local stack without
+resetting data to load template changes. Hosted projects require copying this
+template into both corresponding Dashboard email templates and configuring the
+same OTP length and expiry; local configuration does not change hosted settings.
+Keep email confirmation enabled in production. It is disabled locally so the
+isolated password-based integration fixtures can be created without email.
+
 ## Data and permissions
 
 All application-table access goes through the backend. The browser's `anon`

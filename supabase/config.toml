@@ -232,7 +232,15 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+otp_expiry = 600
+
+[auth.email.template.magic_link]
+subject = "Your Hootus sign-in code"
+content_path = "./supabase/templates/sign-in-code.html"
+
+[auth.email.template.confirmation]
+subject = "Your Hootus sign-in code"
+content_path = "./supabase/templates/sign-in-code.html"
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]

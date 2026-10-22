@@ -64,8 +64,8 @@ export async function createIntegrationFixture() {
   }
 }
 
-// Complete actual email-link authentication through the local Mailpit inbox.
-export async function emailedAccessToken(email: string) {
+// Read actual OTP email from local Mailpit; never print codes or sessions.
+export async function emailedCode(email: string) {
   const config = await readFile(new URL('../../../supabase/config.toml', import.meta.url), 'utf8');
   const port = /\[local_smtp\][^[]*?\bport\s*=\s*(\d+)/.exec(config)?.[1] ?? '54324';
   const mailpit = process.env.MAILPIT_URL ?? `http://127.0.0.1:${port}`;
@@ -74,12 +74,10 @@ export async function emailedAccessToken(email: string) {
     const id = found.messages?.[0]?.ID;
     if (id) {
       const message = await (await fetch(`${mailpit}/api/v1/message/${id}`)).json();
-      const link = /https?:\/\/[^\s"'<>]+\/auth\/v1\/verify[^\s"'<>]+/.exec(`${message.HTML} ${message.Text}`)?.[0];
-      assert(link, 'Sign-in email contains a verification link');
-      const verified = await fetch(link.replaceAll('&amp;', '&'), { redirect: 'manual' });
-      const token = new URLSearchParams(new URL(verified.headers.get('location')!).hash.slice(1)).get('access_token');
-      assert(token, 'Verification redirects with a session');
-      return token;
+      const code = />\s*(\d{6})\s*</.exec(message.HTML)?.[1];
+      assert(code, 'Sign-in email contains a six-digit code');
+      assert(!message.HTML.includes('/auth/v1/verify'), 'Sign-in email must not contain a magic link');
+      return code;
     }
     await new Promise(resolve => setTimeout(resolve, 250));
   }

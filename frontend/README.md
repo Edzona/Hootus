@@ -7,8 +7,11 @@ and configure the Vite API proxy as described in its README.
 
 ## Campus
 
-Successful sign-in opens `/#/dashboard`, including email-link callbacks. Restoring
-an existing session preserves club, event, and profile links.
+Sign-in and signup use a six-digit code sent to the Temple email address. Enter
+it in the same tab to open `/#/dashboard`. The form supports code paste/autofill,
+resend after 60 seconds, and changing the email. Restoring an existing session
+preserves club, event, and profile links. See the backend README for the required
+hosted Supabase email-template settings.
 
 - `/#/clubs`: Following, Discover, and Events feeds, search, and interest filters.
 - `/#/clubs/:id`: club profile. IDs are UUIDs; seeded club slugs such as `film` also work.
@@ -19,7 +22,7 @@ an existing session preserves club, event, and profile links.
 
 The landing page's **Clubs & Orgs** link opens the campus. All campus data goes
 through the authenticated Express `/api/campus` API. The browser uses Supabase
-for Auth only. There is no fallback to mock fixtures or device-local interaction
+for Auth and profile-photo Storage only. There is no fallback to mock fixtures or device-local interaction
 state. Old `hus-campus-*` preview storage is ignored.
 
 Follows, likes, saves, and RSVPs persist in Postgres for the signed-in account.
