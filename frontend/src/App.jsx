@@ -11,6 +11,7 @@ import FinalCta from './components/FinalCta'
 import Footer from './components/Footer'
 import AccountStatus from './components/AccountStatus'
 import Profile from './components/Profile'
+import Campus from './components/campus/Campus'
 
 export default function App() {
   const [hash, setHash] = useState(() => window.location.hash)
@@ -22,6 +23,8 @@ export default function App() {
   }, [])
 
   if (hash.startsWith('#/profile')) return <Profile />
+
+  if (/^#\/(dashboard|clubs|events|activity|friends|saved)(\/|$)/.test(hash)) return <Campus hash={hash} />
 
   if (hash.startsWith('#/signup')) {
     return <><AccountStatus /><SignUp /></>

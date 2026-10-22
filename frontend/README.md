@@ -1,8 +1,39 @@
-# React + Vite
+# HUS frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Run `npm install` and `npm run dev` from this directory. Use `npm run build`
+for production assets and `npm run lint` for ESLint. Run the API in `backend/`
+and configure the Vite API proxy as described in its README.
 
-Currently, two official plugins are available:
+## Campus
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- `/#/clubs`: Following, Discover, and Events feeds, search, and interest filters.
+- `/#/clubs/:id`: club profile. IDs are UUIDs; seeded club slugs such as `film` also work.
+- `/#/events/:id`: event details and account-persisted RSVP. Seeded slugs such as `screening` also work.
+- `/#/dashboard`: club posts, marketplace finds, and housing suggestions.
+- `/#/activity` and `/#/saved`: the signed-in student's RSVPs and saved posts.
+- `/#/friends`: introduction for the future friends feature.
+
+The landing page's **Clubs & Orgs** link opens the campus. All campus data goes
+through the authenticated Express `/api/campus` API. The browser uses Supabase
+for Auth only. There is no fallback to mock fixtures or device-local interaction
+state. Old `hus-campus-*` preview storage is ignored.
+
+Follows, likes, saves, and RSVPs persist in Postgres for the signed-in account.
+Controls wait for API confirmation and report failed writes. Assigned club
+leaders/admins see **Share a club update**, with an optional existing event
+attachment. The backend independently enforces publishing ownership.
+
+Updates are checked every 15 seconds while the page is visible, and on returning
+to it. New posts wait behind **Show updates**; refreshes do not automatically
+insert posts into the reading position. Network errors keep existing content
+visible with a retry action. Signing out or changing accounts clears the previous
+account's campus state. This is polling, not a live WebSocket subscription.
+
+For local sample content, apply migrations and run `npm run db:seed` from
+`backend/`. Use the sign-in form with `hootus-demo@temple.edu` for the student
+view or `hootus-clubs@temple.edu` for the club-leader posting form, and open the
+email in local Mailpit. All sample clubs, events, and listings are illustrative.
+
+Check the layout at desktop and at 320px/390px widths. Verify following, saving,
+and RSVPs survive a reload and are isolated across accounts. Friends, ticketing,
+capacity limits, and an event-creation interface remain future work.

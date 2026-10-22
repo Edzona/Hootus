@@ -36,7 +36,7 @@ export default function Profile() {
       <header className="border-b-2 border-ink">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 md:px-8">
           <a href="#top" aria-label="HUS home"><Wordmark /></a>
-          <a href="#top" className="link-underline font-mono text-xs uppercase tracking-widest">← Back to campus</a>
+          <a href="#/dashboard" className="link-underline font-mono text-xs uppercase tracking-widest">← Back to campus</a>
         </nav>
       </header>
       <main className="mx-auto max-w-6xl px-5 py-12 md:px-8 md:py-20">
