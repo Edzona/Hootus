@@ -12,17 +12,32 @@ export default function Profile() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [userId, setUserId] = useState(undefined)
 
   useEffect(() => {
+    if (!supabase) { window.location.hash = '/signup'; return }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user.id ?? null)
+      if (!session) {
+        setProfile(null)
+        window.location.hash = '/signup'
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    setProfile(null)
+    setError('')
+    if (!userId) { setLoading(userId === undefined); return }
     const controller = new AbortController()
     setLoading(true)
-    setError('')
     apiRequest('/profile/me', { signal: controller.signal })
-      .then(setProfile)
+      .then(next => { if (!controller.signal.aborted) setProfile(next) })
       .catch(err => { if (!controller.signal.aborted) setError(err.message) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [attempt])
+  }, [attempt, userId])
 
   async function signOut() {
     const { error } = await supabase.auth.signOut()

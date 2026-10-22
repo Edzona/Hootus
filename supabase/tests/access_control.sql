@@ -99,7 +99,9 @@ do $$
 declare affected integer;
 begin
   assert (select count(*) = 0 from public.messages), 'Admin read unrelated private messages';
-  update public.listings set status = 'closed';
+  update public.listings set status = 'closed'
+  where author_id = (select id from public.profiles
+    where auth_user_id = '10000000-0000-0000-0000-000000000001');
   get diagnostics affected = row_count;
   assert affected = 1, 'Admin cannot moderate listing';
 end;

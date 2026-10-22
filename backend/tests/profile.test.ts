@@ -1,10 +1,10 @@
+import { createTestApi } from './helpers/api.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { profileUpdateSchema } from '../src/controllers/profile.controller.js';
 import { test } from 'node:test';
 import { UserRole } from '../src/types/domain.js';
-import { createTestApi } from './helpers/api.js';
 import { authOptions, createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
 
 const { call } = createTestApi();
