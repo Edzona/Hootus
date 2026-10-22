@@ -18,5 +18,12 @@ export enum FeedPostKind {
   Perk = 'perk',
 }
 
+export enum CampusAction {
+  Follow = 'follow',
+  Like = 'like',
+  Save = 'save',
+  Rsvp = 'rsvp',
+}
+
 export const userRoleSchema = z.enum(UserRole);
 export const listingCategorySchema = z.enum(ListingCategory);
