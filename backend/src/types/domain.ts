@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export { CampusAction } from './campusAction.js';
 
 // Values are part of the database/API contract. Keep them stable.
 export enum UserRole {
@@ -16,13 +17,6 @@ export enum ListingCategory {
 export enum FeedPostKind {
   ClubEvent = 'club_event',
   Perk = 'perk',
-}
-
-export enum CampusAction {
-  Follow = 'follow',
-  Like = 'like',
-  Save = 'save',
-  Rsvp = 'rsvp',
 }
 
 export const userRoleSchema = z.enum(UserRole);

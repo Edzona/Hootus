@@ -1,0 +1,15 @@
+.git
+.vercel
+**/node_modules/**
+**/dist/**
+**/.env
+**/.env.*
+**/.vite/**
+**/.agents/**
+.agents/**
+.codex/**
+.aws/**
+supabase/**
+docs/**
+**/tests/**
+*.pdf

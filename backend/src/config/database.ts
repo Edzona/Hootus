@@ -5,6 +5,7 @@ import { databaseError, HttpError } from '../helpers/errors.js';
 import { ErrorCode } from '../types/errorCode.js';
 
 export type UserDatabase = <T>(work: (tx: postgres.TransactionSql & IDatabaseConnection) => Promise<T>) => Promise<T>;
+const databaseHost = new URL(env.DATABASE_URL).hostname;
 
 // Reuse a small pool per function instance. Transaction pooling needs no
 // prepared statements or persistent session state.
@@ -13,8 +14,8 @@ export const sql = postgres(env.DATABASE_URL, {
   prepare: false,
   idle_timeout: 10,
   connect_timeout: 10,
-  ssl: ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(env.DATABASE_URL).hostname)
-    ? false : { rejectUnauthorized: true },
+  ssl: ['127.0.0.1', 'localhost', '[::1]'].includes(databaseHost)
+    ? false : 'require',
   onnotice: () => {},
 });
 

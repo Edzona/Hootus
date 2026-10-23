@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
-import { CampusAction } from '../../../../backend/src/types/domain'
+import { CampusAction } from '../../../../backend/src/types/campusAction'
 
 const empty = { clubs: [], events: [], posts: [], savedPosts: [], listings: [] }
 const tokyo = { timeZone: 'Asia/Tokyo' }

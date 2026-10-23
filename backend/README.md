@@ -227,7 +227,30 @@ Supabase URLs. `npm test` only runs the checks that do not require Supabase.
 
 ## Vercel
 
-Use two Vercel projects from this repository:
+The root `vercel.json` deploys the Vite frontend and Express backend as two
+services in one Vercel project. `/api` requests go to the backend; other paths
+go to the frontend. Leave `VITE_API_URL` empty for this setup. Set the Supabase
+variables for the deployment's target environment: Production variables are
+not available to Preview deployments automatically.
+
+The backend service uses `src/app.ts` with `outputDirectory: "."` so Vercel
+compiles the source and retains its package context. Selecting the standalone
+`tsc` output can move `src/app.js` outside the backend's `type: module` package
+and cause `Cannot use import statement outside a module` at runtime.
+`.vercelignore` excludes local environment files, database runtime secrets,
+development caches and demo documentation from deployment uploads.
+
+Apply all repository migrations to hosted Supabase before using the API. Do not
+push the local seed. The migrations create `hootus_server` without a password;
+provision a separate password for that login, then use
+`hootus_server.PROJECT_REF` with the hosted transaction pooler in `DATABASE_URL`.
+Set `CORS_ORIGINS` to the exact frontend HTTPS origin. Keep database credentials
+server-only and redeploy after changing environment variables.
+
+Hosted connections use Postgres.js `ssl: 'require'`: traffic is encrypted, but
+the server certificate is not verified. No custom CA configuration is needed.
+
+Alternatively, use two separate Vercel projects from this repository:
 
 1. **Backend:** Root Directory `backend`, Framework Preset **Other**, Node 22 or
    newer, Build Command `npm run build`, Output Directory `public`. The included
@@ -239,7 +262,7 @@ Use two Vercel projects from this repository:
    with username `hootus_server.PROJECT_REF`. The migration creates this role
    without a password; set a unique one in the hosted SQL Editor
    (`alter role hootus_server password '...'`) and keep it out of the repository.
-   Hosted connections require verified TLS. Keep this credential out of frontend
+   Hosted connections require encrypted TLS. Keep this credential out of frontend
    environments; the default `postgres` login is deliberately rejected.
 2. **Frontend:** Root Directory `frontend`, Framework Preset **Vite**. Set
    `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `VITE_API_URL` to

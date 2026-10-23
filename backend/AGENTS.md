@@ -145,7 +145,7 @@ only for Auth; do not grant browser roles application-table access.
   TypeScript together. `npm run sql:check` fails when generated files are stale.
 - `npm run dev` generates first; run `npm run sql:watch` in another terminal when
   editing SQL. After schema changes, regenerate explicitly. Run `npm run check`
-  before submitting. CI checks against a fresh local Supabase schema.
+  before submitting against your migrated local Supabase database.
 - `SQL_GENERATION_DATABASE_URL` is local-only tooling configuration and may use
   the local database owner for introspection. Never deploy it or reuse production
   credentials. Runtime `DATABASE_URL` remains the restricted server login.
