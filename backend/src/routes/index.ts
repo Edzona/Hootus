@@ -21,5 +21,5 @@ protectedRoutes.use("/listings", listingsRoutes);
 protectedRoutes.use("/feed", feedRoutes);
 protectedRoutes.use("/profile", profileRoutes);
 protectedRoutes.use("/campus", campusRoutes);
-routes.use("/messaging", messagingRoutes);
+protectedRoutes.use("/messaging", messagingRoutes);
 routes.use(protectedRoutes);

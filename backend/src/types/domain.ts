@@ -1,22 +1,28 @@
-import { z } from 'zod';
-export { CampusAction } from './campusAction.js';
+import { z } from "zod";
+export { CampusAction } from "./campusAction.js";
 
 // Values are part of the database/API contract. Keep them stable.
 export enum UserRole {
-  Student = 'student',
-  ClubLeader = 'club_leader',
-  Admin = 'admin',
+  Student = "student",
+  ClubLeader = "club_leader",
+  Admin = "admin",
 }
 
 export enum ListingCategory {
-  Sales = 'sales',
-  Housing = 'housing',
-  Gigs = 'gigs',
+  Sales = "sales",
+  Housing = "housing",
+  Gigs = "gigs",
+}
+
+export enum ListingStatus {
+  Active = "active",
+  Sold = "sold",
+  Closed = "closed",
 }
 
 export enum FeedPostKind {
-  ClubEvent = 'club_event',
-  Perk = 'perk',
+  ClubEvent = "club_event",
+  Perk = "perk",
 }
 
 export const userRoleSchema = z.enum(UserRole);
