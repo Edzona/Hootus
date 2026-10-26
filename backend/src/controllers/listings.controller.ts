@@ -11,7 +11,9 @@ import { assertAuthenticated } from "../helpers/auth.js";
 import { listingCategorySchema, ListingStatus } from "../types/domain.js";
 import { HttpError } from "../helpers/errors.js";
 import { ErrorCode } from "../types/errorCode.js";
+import { env } from "../config/env.js";
 
+const listingPhotoName = /^[0-9a-f-]{36}\.(?:jpg|png|webp)$/;
 export const listingSchema = z.strictObject({
   category: listingCategorySchema,
   title: z.string().trim().min(1).max(200),
@@ -32,6 +34,21 @@ export const listingSchema = z.strictObject({
 export const createListing: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const body = res.locals.body as z.infer<typeof listingSchema>;
+  // Photos must be files the caller uploaded to their own folder in the listing-photos bucket.
+  const folder = `${env.SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/public/listing-photos/${req.user.authUserId}/`;
+  if (
+    body.image_urls.some(
+      (url) =>
+        !url.startsWith(folder) ||
+        !listingPhotoName.test(url.slice(folder.length)),
+    )
+  ) {
+    throw new HttpError(
+      400,
+      ErrorCode.InvalidData,
+      "Upload your listing photos before posting.",
+    );
+  }
   const [data] = await req.db((tx) =>
     insertPost.run({ ...body, authorId: req.user.internalId }, tx),
   );

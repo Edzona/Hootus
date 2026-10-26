@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Wordmark } from './Logo'
 import { apiRequest } from '../lib/api'
 import { supabase } from '../lib/supabase'
+import { LISTING_PHOTO_LIMIT, removeListingPhotos, uploadListingPhotos } from '../lib/listingPhotos'
 
 // Dev-only test page for listings and listing chat. Polls instead of using Realtime.
 const POLL_MS = 4000
@@ -24,6 +25,16 @@ export default function BetaListings() {
   const [form, setForm] = useState({ category: 'sales', title: '', price: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [photos, setPhotos] = useState([])
+  const [photoInputKey, setPhotoInputKey] = useState(0)
+  const [previews, setPreviews] = useState([])
+
+  // Local previews of chosen photos; freed when the selection changes.
+  useEffect(() => {
+    const urls = photos.map(file => URL.createObjectURL(file))
+    setPreviews(urls)
+    return () => urls.forEach(url => URL.revokeObjectURL(url))
+  }, [photos])
 
   useEffect(() => {
     if (!supabase) { setUserId(null); return }
@@ -82,14 +93,38 @@ export default function BetaListings() {
       return
     }
     setBusy(true)
-    const created = await run(() => apiRequest('/listings', {
-      method: 'POST', body: { category: form.category, title: form.title, price_jpy: price },
-    }))
+    const created = await run(async () => {
+      // Photos upload only on Post, so abandoned forms leave no files behind.
+      const uploaded = await uploadListingPhotos(photos)
+      try {
+        return await apiRequest('/listings', {
+          method: 'POST',
+          body: { category: form.category, title: form.title, price_jpy: price, image_urls: uploaded.urls },
+        })
+      } catch (err) {
+        await removeListingPhotos(uploaded.paths)
+        throw err
+      }
+    })
     setBusy(false)
     if (created) {
       setForm(current => ({ ...current, title: '', price: '' }))
+      setPhotos([])
+      setPhotoInputKey(key => key + 1)
       run(loadListings)
     }
+  }
+
+  function choosePhotos(event) {
+    const chosen = Array.from(event.target.files ?? [])
+    if (chosen.length > LISTING_PHOTO_LIMIT) {
+      setError(`Choose up to ${LISTING_PHOTO_LIMIT} photos.`)
+      event.target.value = ''
+      setPhotos([])
+      return
+    }
+    setError('')
+    setPhotos(chosen)
   }
 
   async function endListing(listing, status) {
@@ -161,13 +196,33 @@ export default function BetaListings() {
                 <label className="sr-only" htmlFor="beta-price">Price in yen</label>
                 <input id="beta-price" inputMode="numeric" placeholder="¥ (optional)" className="border-2 border-ink px-3 py-2"
                   value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
-                <button type="submit" className="btn-primary" disabled={busy}>Post</button>
+                <button type="submit" className="btn-primary" disabled={busy}>{busy ? 'Posting…' : 'Post'}</button>
+                <div className="sm:col-span-4">
+                  <label htmlFor="beta-photos" className="eyebrow text-ink/60">Photos (up to {LISTING_PHOTO_LIMIT})</label>
+                  <input key={photoInputKey} id="beta-photos" type="file" accept="image/*" multiple
+                    className="mt-2 block w-full text-sm" onChange={choosePhotos} disabled={busy} />
+                  {previews.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {previews.map(url => (
+                        <img key={url} src={url} alt="" className="h-16 w-16 border-2 border-ink object-cover" />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </form>
 
               <ul className="mt-6 space-y-4">
                 {listings.length === 0 && <li className="text-ink/60">No listings yet. Post one above.</li>}
                 {listings.map(listing => (
                   <li key={listing.id} className="border-2 border-ink bg-white p-4 shadow-hard">
+                    {listing.image_urls?.length > 0 && (
+                      <div className="mb-3 flex gap-2 overflow-x-auto">
+                        {listing.image_urls.map((url, index) => (
+                          <img key={url} src={url} alt={`${listing.title}, photo ${index + 1}`} loading="lazy"
+                            className={`shrink-0 border-2 border-ink object-cover ${index === 0 ? 'h-40 w-56' : 'h-40 w-28'}`} />
+                        ))}
+                      </div>
+                    )}
                     <p className="eyebrow text-cherry">{listing.category} · {statusLabel[listing.status] ?? listing.status}</p>
                     <p className="mt-1 font-display text-lg font-bold">{listing.title}</p>
                     <p className="font-mono text-xs text-ink/60">
