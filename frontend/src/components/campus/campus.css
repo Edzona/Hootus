@@ -43,7 +43,7 @@
 .sidebar-note { margin: 47px 16px 20px; color: var(--campus-muted); font-size: 12px; line-height: 1.7; }
 .sidebar-note > span { display: block; font-size: 30px; color: #b7bec4; margin-bottom: 6px; }
 .sidebar-note a { display: block; color: var(--campus-red); font-weight: 600; margin-top: 7px; }
-.campus-user { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 15px 0 10px 10px; border-top: 1px solid var(--campus-line); }
+.campus-user { margin: 0 0 43px 0; display: flex; align-items: center; gap: 10px; padding: 15px 0 10px 10px; }
 .user-avatar { width: 35px; height: 35px; border-radius: 50%; display: grid; place-items: center; background: #eee8e0; font-size: 11px; font-weight: 700; }
 .campus-user strong { font-size: 12px; display: block; }
 .campus-user small { font-size: 10px; color: var(--campus-muted); display: block; }

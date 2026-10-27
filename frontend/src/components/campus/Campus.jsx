@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Wordmark } from '../Logo'
+
 import Icon from './Icon'
+import { apiRequest } from '../../lib/api'
 import useCampusData from './useCampusData'
 import './campus.css'
 
@@ -133,6 +134,19 @@ export default function Campus({ hash }) {
   const campus = useCampusData()
   const { clubs, events, posts, savedPosts, listings, following, saved, attending, liked,
     follow, save, rsvp, like: toggleLiked, busy, notice, setNotice, incomingCount, revealPosts } = campus
+  const [profile, setProfile] = useState(null)
+  const initials = (profile?.full_name || 'TUJ Student').split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('')
+  const userAvatarUrl = profile?.avatar_url
+  const userInitials = profile ? initials : 'You'
+  const userName = profile?.full_name || 'Your profile'
+  useEffect(() => {
+    if (campus.signInRequired || !campus.hasData) { setProfile(null); return }
+    const controller = new AbortController()
+    apiRequest('/profile/me', { signal: controller.signal })
+      .then(setProfile)
+      .catch(() => {})
+    return () => controller.abort()
+  }, [campus.signInRequired, campus.hasData])
   const clubById = (id) => clubs.find(club => club.id === id || club.slug === id)
   const eventById = (id) => events.find(event => event.id === id || event.slug === id)
   const [tab, setTab] = useState('following')
@@ -211,7 +225,7 @@ export default function Campus({ hash }) {
   return <CampusContext.Provider value={{ following, follow, attending, rsvp, liked, toggleLiked, saved, save, visibleClubs, category, setCategory, clubById, eventById, clubs, events, publish: campus.publish, busy }}><div className="campus-app">
     <a className="campus-skip" href="#campus-main" onClick={(event) => { event.preventDefault(); mainRef.current?.focus() }}>Skip to content</a>
     <div className="campus-shell">
-      <aside className="campus-sidebar"><a href="#/dashboard" className="campus-brand" aria-label="HUS dashboard"><Wordmark /><span>Made for TUJ.</span></a><nav className="campus-nav" aria-label="Campus navigation">{navigation.map((item) => { const active = path === item.path || item.path === '/clubs' && (isClubDetail || isEventDetail); return <a key={item.path} href={`#${item.path}`} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon name={item.icon} /><span>{item.label}</span>{item.path === '/activity' && attending.length > 0 && <span className="nav-count">{attending.length}</span>}</a> })}</nav><div className="sidebar-note"><span aria-hidden="true">↗</span><p>A campus is a place.<br />A community is its people.</p><a href="#/clubs">Find yours here.</a></div><a href="#/profile" className="campus-user"><span className="user-avatar">You</span><span><strong>Your profile</strong><small>Make yourself at home</small></span><Icon name="arrow" size={16} /></a><a href="#top" className="back-to-site">About HUS <Icon name="external" size={13} /></a></aside>
+      <aside className="campus-sidebar"><a href='#/profile' className='campus-user'><span className='user-avatar' style={userAvatarUrl ? { backgroundImage: 'url(' + userAvatarUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {}} aria-hidden='true'>{userAvatarUrl ? '' : userInitials}</span><span><strong>{userName}</strong><small>Make yourself at home</small></span><Icon name='arrow' size={16} /></a><nav className="campus-nav" aria-label="Campus navigation">{navigation.map((item) => { const active = path === item.path || item.path === '/clubs' && (isClubDetail || isEventDetail); return <a key={item.path} href={`#${item.path}`} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon name={item.icon} /><span>{item.label}</span>{item.path === '/activity' && attending.length > 0 && <span className="nav-count">{attending.length}</span>}</a> })}</nav><div className="sidebar-note"><span aria-hidden="true">↗</span><p>A campus is a place.<br />A community is its people.</p><a href="#/clubs">Find yours here.</a></div><a href="#top" className="back-to-site">About HUS <Icon name="external" size={13} /></a></aside>
       <main id="campus-main" className="campus-main" tabIndex={-1} ref={mainRef}>
         <header className="campus-header"><div>{(isClubDetail || isEventDetail) && <a href="#/clubs" className="campus-back" aria-label="Back to communities"><Icon name="back" size={20} /></a>}<span>{title}</span></div><span className="preview-badge"><span />{campus.error ? 'Updates paused' : campus.hasData ? 'Connected' : 'HUS Campus'}</span></header>
         {campus.hasData && campus.error && <div className="campus-error" role="alert">Updates paused. {campus.error}<button type="button" onClick={campus.refresh}>Retry</button></div>}{renderMain()}<footer className="campus-feed-footer">Seeded sample clubs and listings are illustrative, not official TUJ records.</footer>

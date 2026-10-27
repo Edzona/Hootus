@@ -28,7 +28,7 @@ export default function Flyer({
   children,
 }) {
   return (
-    <article className={`flyer ${absolute ? 'absolute' : 'relative'} ${className}`} style={{ '--r': `${0}deg`, '--d': `${delay}ms` }}>
+    <article className={`flyer ${absolute ? 'absolute' : 'relative'} ${className}`} style={{ '--r': `${rotate}deg`, '--d': `${delay}ms` }}>
       <span
         className={`absolute left-1/2 top-2 z-10 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-ink ${pinClass} shadow-[0_3px_0_rgba(20,17,15,.35)]`}
         aria-hidden="true"
