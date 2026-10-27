@@ -12,6 +12,9 @@ import Footer from './components/Footer'
 import AccountStatus from './components/AccountStatus'
 import Profile from './components/Profile'
 import Campus from './components/campus/Campus'
+import HubNav from './components/HubNav'
+import Marketplace from './components/Marketplace'
+import RealEstate from './components/RealEstate'
 import { supabase, signInCallbackPending } from './lib/supabase'
 import { createDashboardRedirect } from './lib/authRedirect'
 
@@ -37,7 +40,10 @@ export default function App() {
 
   if (hash.startsWith('#/profile')) return <Profile />
 
-  if (/^#\/(dashboard|clubs|events|activity|friends|saved)(\/|$)/.test(hash)) return <Campus hash={hash} />
+  if (hash.startsWith('#/marketplace')) return <><HubNav hash={hash} /><Marketplace /></>
+  if (hash.startsWith('#/real-estate')) return <><HubNav hash={hash} /><RealEstate /></>
+
+  if (/^#\/(dashboard|clubs|events|activity|friends|saved)(\/|$)/.test(hash)) return <><HubNav hash={hash} /><Campus hash={hash} /></>
 
   if (hash.startsWith('#/signup')) {
     return <><AccountStatus /><SignUp /></>

@@ -30,6 +30,12 @@ const navigation = [
   { label: 'Saved', icon: 'save', path: '/saved' },
 ]
 
+const hubNav = [
+  { label: 'Community', path: '/dashboard' },
+  { label: 'Marketplace', path: '/marketplace' },
+  { label: 'Real estate', path: '/real-estate' },
+]
+
 const CampusContext = createContext(null)
 
 function FollowButton({ club, compact = false }) {
@@ -110,7 +116,7 @@ export default function Campus({ hash }) {
   const isEventDetail = path.startsWith('/events/')
   const selectedClub = isClubDetail ? clubById(path.split('/')[2]) : null
   const selectedEvent = isEventDetail ? eventById(path.split('/')[2]) : null
-  const title = selectedClub?.name || selectedEvent?.type || navigation.find((item) => item.path === path)?.label || 'Communities'
+  const title = selectedClub?.name || selectedEvent?.type || hubNav.find((item) => item.path === path)?.label || navigation.find((item) => item.path === path)?.label || 'Communities'
 
   useEffect(() => {
     document.title = `${title} · HUS Campus`
@@ -146,6 +152,14 @@ export default function Campus({ hash }) {
       <section className="dashboard-listings"><div className="section-line"><div><span className="campus-caption">Pass it on</span><h2>Marketplace finds</h2></div><span>Latest listings</span></div>{listings.filter((listing) => listing.kind === 'market').map((listing) => <Listing key={listing.id} listing={listing} />)}</section>
       <section className="dashboard-listings"><div className="section-line"><div><span className="campus-caption">Settle into Tokyo</span><h2>Somewhere to call home</h2></div></div>{listings.filter(listing => listing.kind === 'housing').map(listing => <Listing key={listing.id} listing={listing} />)}</section>
     </>
+    if (path === '/marketplace') return <>
+      <section className="hub-welcome market-welcome"><span className="campus-caption">Buy, sell, trade</span><h1>Student marketplace.</h1><p>Furniture, clothes, electronics, and the occasional gig. Only TUJ students.</p></section>
+      <section className="hub-listings market-listings"><div className="section-line"><div><span className="campus-caption">Latest picks</span><h2>On the market</h2></div></div>{listings.filter((listing) => listing.kind === 'market').length ? listings.filter((listing) => listing.kind === 'market').map((listing) => <Listing key={listing.id} listing={listing} />) : <Empty heading="Nothing for sale right now">Check back later, or post your own listing.</Empty>}</section>
+    </>
+    if (path === '/real-estate') return <>
+      <section className="hub-welcome housing-welcome"><span className="campus-caption">Rooms &amp; sublets</span><h1>Somewhere to call home.</h1><p>Sublets, sharehouses, and roommate searches near campus.</p></section>
+      <section className="hub-listings housing-listings"><div className="section-line"><div><span className="campus-caption">Near TUJ</span><h2>Housing listings</h2></div></div>{listings.filter((listing) => listing.kind === 'housing').length ? listings.filter((listing) => listing.kind === 'housing').map((listing) => <Listing key={listing.id} listing={listing} />) : <Empty heading="No rooms posted right now">Check back later for sublets and sharehouses.</Empty>}</section>
+    </>
     if (path === '/activity') return <><div className="page-intro"><h1>Your activity</h1><p>Your upcoming plans and updates, in one place.</p></div>{attending.length ? <><div className="feed-section-heading"><h2>You’re going</h2></div>{events.filter((event) => attending.includes(event.id)).map((event) => <div className="activity-event" key={event.id}><EventSummary event={event} /></div>)}</> : <Empty heading="Your next plan starts here">RSVP to an event and it will appear here.<a className="campus-button" href="#/clubs">Find your next meetup</a></Empty>}<div className="activity-note"><Icon name="activity" /><p>Your RSVPs are saved to your account. Replies and friend notifications are coming later.</p></div></>
     if (path === '/friends') return <><div className="page-intro"><h1>Good company starts here.</h1><p>A shared interest is a pretty good introduction.</p></div><Empty heading="Find a familiar face">Explore a club or head to an event to meet other students. Friend connections are coming in a later version.<a href="#/clubs" className="campus-button">Explore communities</a></Empty><div className="friends-clubs">{clubs.slice(0, 3).map((club) => <a key={club.id} href={`#/clubs/${club.id}`}><Avatar club={club} /><span><strong>{club.name}</strong><small>{club.category}</small></span><Icon name="arrow" /></a>)}</div></>
     if (path === '/saved') {
@@ -170,7 +184,10 @@ export default function Campus({ hash }) {
     <a className="campus-skip" href="#campus-main" onClick={(event) => { event.preventDefault(); mainRef.current?.focus() }}>Skip to content</a>
     <div className="campus-shell">
       <aside className="campus-sidebar"><a href="#/dashboard" className="campus-brand" aria-label="HUS dashboard"><Wordmark /><span>Made for TUJ.</span></a><nav className="campus-nav" aria-label="Campus navigation">{navigation.map((item) => { const active = path === item.path || item.path === '/clubs' && (isClubDetail || isEventDetail); return <a key={item.path} href={`#${item.path}`} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon name={item.icon} /><span>{item.label}</span>{item.path === '/activity' && attending.length > 0 && <span className="nav-count">{attending.length}</span>}</a> })}</nav><div className="sidebar-note"><span aria-hidden="true">↗</span><p>A campus is a place.<br />A community is its people.</p><a href="#/clubs">Find yours here.</a></div><a href="#/profile" className="campus-user"><span className="user-avatar">You</span><span><strong>Your profile</strong><small>Make yourself at home</small></span><Icon name="arrow" size={16} /></a><a href="#top" className="back-to-site">About HUS <Icon name="external" size={13} /></a></aside>
-      <main id="campus-main" className="campus-main" tabIndex={-1} ref={mainRef}><header className="campus-header"><div>{(isClubDetail || isEventDetail) && <a href="#/clubs" className="campus-back" aria-label="Back to communities"><Icon name="back" size={20} /></a>}<span>{title}</span></div><span className="preview-badge"><span />{campus.error ? 'Updates paused' : campus.hasData ? 'Connected' : 'HUS Campus'}</span></header>{campus.hasData && campus.error && <div className="campus-error" role="alert">Updates paused. {campus.error}<button type="button" onClick={campus.refresh}>Retry</button></div>}{renderMain()}<footer className="campus-feed-footer">Seeded sample clubs and listings are illustrative, not official TUJ records.</footer></main>
+      <main id="campus-main" className="campus-main" tabIndex={-1} ref={mainRef}>
+        <header className="campus-header"><div>{(isClubDetail || isEventDetail) && <a href="#/clubs" className="campus-back" aria-label="Back to communities"><Icon name="back" size={20} /></a>}<span>{title}</span></div><span className="preview-badge"><span />{campus.error ? 'Updates paused' : campus.hasData ? 'Connected' : 'HUS Campus'}</span></header>
+        {campus.hasData && campus.error && <div className="campus-error" role="alert">Updates paused. {campus.error}<button type="button" onClick={campus.refresh}>Retry</button></div>}{renderMain()}<footer className="campus-feed-footer">Seeded sample clubs and listings are illustrative, not official TUJ records.</footer>
+      </main>
       <aside className="campus-right" aria-label="Discover clubs and events"><div className="right-top"><span className="campus-caption">A little outside your circle</span><span aria-hidden="true">✳</span></div><section className="suggested-clubs"><div className="section-line"><h2>Room for one more.</h2></div><p>Your next favorite club could be right here.</p>{clubs.filter((club) => !following.includes(club.id)).slice(0, 3).map((club) => <div className="suggested-club" key={club.id}><a href={`#/clubs/${club.id}`}><Avatar club={club} /><span><strong>{club.name}</strong><small>{club.category}</small></span></a><FollowButton club={club} compact /></div>)}{clubs.length > 0 && clubs.every((club) => following.includes(club.id)) && <p className="inline-empty">You’re following every club here. Your campus circle is growing.</p>}<a className="campus-text-link" href="#/clubs" onClick={() => { setTab('discover'); setCategory('All'); setQuery('') }}>Explore all communities<Icon name="arrow" size={15} /></a></section><section className="right-events"><div className="section-line"><h2>Pencil it in.</h2><Icon name="calendar" size={18} /></div><p>A few good reasons to close your laptop.</p>{events.map((event) => <a href={`#/events/${event.id}`} className="right-event" key={event.id}><span className="event-date"><small>{event.month}</small><strong>{event.day}</strong></span><span><strong>{event.title}</strong><small>{clubById(event.club)?.name || 'Campus club'}</small></span><Icon name="arrow" size={15} /></a>)}</section><div className="campus-right-note"><span className="note-flower" aria-hidden="true">✳</span><h2>Show up as you are.</h2><p>New to campus? New to Tokyo?<br />There’s a place for you here.</p><a href="#/clubs" onClick={() => setTab('discover')}>Start with a club<Icon name="arrow" size={16} /></a></div><p className="right-footnote">HUS is a student community concept.<br />Sample clubs are not official TUJ listings.</p></aside>
     </div>
     <div className="campus-status" role="status" aria-live="polite">{(notice || busy) && <><span>{busy ? 'Saving your changes…' : notice}</span><button type="button" aria-label="Dismiss notification" onClick={() => setNotice('')}>×</button></>}</div>
