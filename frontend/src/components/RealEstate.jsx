@@ -1,3 +1,4 @@
+import Flyer from './Flyer'
 import useCampusData from './campus/useCampusData'
 
 export default function RealEstate() {
@@ -21,17 +22,18 @@ export default function RealEstate() {
           <p className="text-ink/60">No rooms posted right now.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
-            {listings.map((l) => (
-              <article key={l.id} className="flex flex-col border-2 border-ink bg-paper p-6 shadow-hard transition duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard-lg">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <span className="rounded-full border-2 border-ink bg-sky px-3 py-1 font-mono text-[10px] uppercase tracking-widest">{l.label}</span>
-                    <h2 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{l.title}</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-ink/70">{l.detail}</p>
-                  </div>
-                  <span className="shrink-0 rounded border-2 border-ink bg-paper px-3 py-2 font-mono text-sm font-bold">{l.price}</span>
-                </div>
-              </article>
+            {listings.map((l, i) => (
+              <Flyer
+                key={l.id}
+                tag={l.label}
+                title={l.title}
+                meta={l.detail}
+                price={l.price}
+                tagClass="bg-sky"
+                tab="DM on HUS"
+                absolute={false}
+                className="w-full"
+              />
             ))}
           </div>
         )}

@@ -49,6 +49,34 @@ function EventSummary({ event }) {
   return <div className="event-summary"><div><span className="campus-caption">{event.type}</span><a className="event-title" href={`#/events/${event.id}`}>{event.title}</a><p><Icon name="calendar" size={14} />{event.month} {event.day}, {event.time.split('–')[0]}<span className="event-summary-price">{event.price}</span></p></div><button type="button" className={`campus-rsvp ${attending.includes(event.id) ? 'is-attending' : ''}`} aria-pressed={attending.includes(event.id)} aria-label={`${attending.includes(event.id) ? 'Cancel RSVP for' : 'RSVP for'} ${event.title}`} disabled={busy} onClick={() => rsvp(event.id)}>{attending.includes(event.id) ? <><Icon name="check" size={14} /> Going</> : 'RSVP'}</button></div>
 }
 
+function RsvpTicket({ event, className = 'mt-6 flex text-ink', style = { rotate: '0deg' } }) {
+  const { attending } = useContext(CampusContext)
+  const capacity = 40
+  const claimed = attending.includes(event.id) ? 1 : 0
+  return (
+    <div className={className} style={style}>
+      <div className='flex-1 rounded-l-lg bg-paper p-5'>
+        <p className='eyebrow text-cherry'>Admit one</p>
+        <p className='mt-1 font-display text-2xl font-extrabold tracking-tight'>{event.title}</p>
+        <p className='font-mono text-xs text-ink/60'>{event.date} · {event.time} · {event.price}</p>
+        <div className='mt-4 h-2.5 border-2 border-ink bg-white'>
+          <div className='h-full bg-cherry' style={{ width: (claimed / capacity) * 100 + '%' }} />
+        </div>
+        <p className='mt-1 font-mono text-[10px] uppercase tracking-widest text-ink/60'>{claimed + ' / ' + capacity + ' claimed · ' + (capacity - claimed) + ' left'}</p>
+      </div>
+      <div className='relative grid w-24 place-items-center rounded-r-lg border-l-2 border-dashed border-ink bg-sun'>
+        <span className='absolute -left-2.5 -top-2.5 h-5 w-5 rounded-full bg-ink' />
+        <span className='absolute -bottom-2.5 -left-2.5 h-5 w-5 rounded-full bg-ink' />
+        <div className='grid grid-cols-5 gap-0.5' aria-hidden='true'>
+          {'1011001101110100101101011'.split('').map((b, i) => (
+            <span key={i} className={'h-2.5 w-2.5 ' + (b === '1' ? 'bg-ink' : '')} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Post({ post }) {
   const { liked, toggleLiked, saved, save, clubById, eventById, busy } = useContext(CampusContext)
   const club = clubById(post.club)
@@ -57,7 +85,7 @@ function Post({ post }) {
   return <article className="campus-post">
     <div className="post-identity"><a href={`#/clubs/${club.id}`} aria-label={`${club.name} profile`}><Avatar club={club} /></a><div><a href={`#/clubs/${club.id}`} className="post-author">{club.name}</a><span className="post-handle">@{club.handle}</span></div><span className="post-time">{post.time} ago</span></div>
     <p className="post-text">{post.text}</p>
-    {event && <div className="post-event"><a className="poster-link" href={`#/events/${event.id}`} aria-label={`View ${event.title}`}><Poster event={event} /></a><EventSummary event={event} /></div>}
+    {event && <div className="post-event"><a className="poster-link" href={`#/events/${event.id}`} aria-label={`View ${event.title}`}><Poster event={event} /></a><RsvpTicket event={event} className='my-4 flex w-full text-ink' /><EventSummary event={event} /></div>}
     <div className="post-actions"><button type="button" aria-pressed={liked.includes(post.id)} className={liked.includes(post.id) ? 'is-liked' : ''} aria-label={`${liked.includes(post.id) ? 'Unlike' : 'Like'} post by ${club.name}`} disabled={busy} onClick={() => toggleLiked(post.id)}><Icon name="heart" size={18} />{post.likes}</button><button type="button" aria-pressed={saved.includes(post.id)} className={saved.includes(post.id) ? 'is-saved' : ''} disabled={busy} onClick={() => save(post.id)}><Icon name="save" size={17} />{saved.includes(post.id) ? 'Saved' : 'Save'}</button><a href={`#/clubs/${club.id}`}>Visit club<Icon name="arrow" size={15} /></a></div>
   </article>
 }
@@ -145,7 +173,7 @@ export default function Campus({ hash }) {
       <section className="club-profile-info"><div className="club-profile-top"><Avatar club={selectedClub} large /><FollowButton club={selectedClub} /></div><span className="campus-caption">{selectedClub.category}</span><h1>{selectedClub.name}</h1><p className="post-handle">@{selectedClub.handle}</p><p className="profile-description">{selectedClub.description}</p><div className="profile-facts"><span><Icon name="friends" size={16} />{selectedClub.followers} followers</span><span><Icon name="clock" size={16} />{selectedClub.meeting}</span><span><Icon name="pin" size={16} />{selectedClub.location}</span></div><p className="profile-note">Follow for updates. For membership, ask the club at its next meetup.</p></section>
       <PostComposer clubId={selectedClub.id} />{incomingCount > 0 && <button type="button" className="new-post-banner" onClick={revealPosts}>New community updates · Show updates<Icon name="arrow" size={15} /></button>}<div className="feed-section-heading"><h2>From the club</h2></div>{feedPosts.filter((post) => post.club === selectedClub.id).map((post) => <Post key={post.id} post={post} />)}
     </>
-    if (selectedEvent) return <section className="event-detail"><Poster event={selectedEvent} /><div className="event-detail-content"><a className="event-host" href={`#/clubs/${selectedEvent.club}`}><Avatar club={clubById(selectedEvent.club)} /><span>Hosted by<strong>{clubById(selectedEvent.club)?.name || 'Campus club'}</strong></span><Icon name="arrow" size={18} /></a><span className="campus-caption">{selectedEvent.type}</span><h1>{selectedEvent.title}</h1><div className="event-facts"><p><Icon name="calendar" /><span>{selectedEvent.date}<small>{selectedEvent.time}</small></span></p><p><Icon name="pin" /><span>{selectedEvent.location}<small>{selectedEvent.price}</small></span></p></div><h2>The plan</h2><p>{selectedEvent.description}</p><p>{selectedEvent.note}</p><button type="button" className={`campus-button event-rsvp-button ${attending.includes(selectedEvent.id) ? 'is-following' : ''}`} aria-pressed={attending.includes(selectedEvent.id)} disabled={busy} onClick={() => rsvp(selectedEvent.id)}><Icon name={attending.includes(selectedEvent.id) ? 'check' : 'calendar'} size={18} />{attending.includes(selectedEvent.id) ? 'Cancel RSVP' : 'Count me in · RSVP'}</button><p className="preview-note">{clubById(selectedEvent.club)?.isSample ? 'Sample event. Your RSVP is saved to your HUS account.' : 'Your RSVP is saved to your HUS account.'} Times shown in Japan time.</p></div></section>
+    if (selectedEvent) return <section className="event-detail"><Poster event={selectedEvent} /><div className="event-detail-content"><a className="event-host" href={`#/clubs/${selectedEvent.club}`}><Avatar club={clubById(selectedEvent.club)} /><span>Hosted by<strong>{clubById(selectedEvent.club)?.name || 'Campus club'}</strong></span><Icon name="arrow" size={18} /></a><span className="campus-caption">{selectedEvent.type}</span><h1>{selectedEvent.title}</h1><div className="event-facts"><p><Icon name="calendar" /><span>{selectedEvent.date}<small>{selectedEvent.time}</small></span></p><p><Icon name="pin" /><span>{selectedEvent.location}<small>{selectedEvent.price}</small></span></p></div><RsvpTicket event={selectedEvent} className='my-6 flex w-full max-w-sm text-ink' /><h2>The plan</h2><p>{selectedEvent.description}</p><p>{selectedEvent.note}</p><button type="button" className={`campus-button event-rsvp-button ${attending.includes(selectedEvent.id) ? 'is-following' : ''}`} aria-pressed={attending.includes(selectedEvent.id)} disabled={busy} onClick={() => rsvp(selectedEvent.id)}><Icon name={attending.includes(selectedEvent.id) ? 'check' : 'calendar'} size={18} />{attending.includes(selectedEvent.id) ? 'Cancel RSVP' : 'Count me in · RSVP'}</button><p className="preview-note">{clubById(selectedEvent.club)?.isSample ? 'Sample event. Your RSVP is saved to your HUS account.' : 'Your RSVP is saved to your HUS account.'} Times shown in Japan time.</p></div></section>
     if (path === '/dashboard') return <>
       <section className="campus-welcome"><span className="campus-caption">Your campus, connected</span><h1>A little more<br />campus in your day.</h1><p>Find your people. Make a plan. Make yourself at home.</p><a href="#/clubs" className="campus-button">Explore communities<Icon name="arrow" size={17} /></a><span className="welcome-flower" aria-hidden="true">✳</span></section>
       <div className="feed-section-heading"><div><span className="campus-caption">Out of the group chat</span><h2>On campus this week</h2></div><a href="#/clubs">All updates <Icon name="arrow" size={16} /></a></div><>{posts[0] ? <Post post={posts[0]} /> : <Empty heading="Your campus story starts here">Club posts will appear as they’re published.</Empty>}</>

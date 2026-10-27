@@ -1,3 +1,18 @@
+export function RsvpBar({ claimed, capacity, label = 'RSVPs' }) {
+  const width = capacity > 0 ? `${(claimed / capacity) * 100}%` : '0%'
+  return (
+    <div className="mt-3">
+      <div className="flex justify-between font-mono text-[10px] uppercase tracking-widest text-ink/60">
+        <span>{label}</span>
+        <span>{claimed} / {capacity}</span>
+      </div>
+      <div className="mt-1 h-2.5 border-2 border-ink bg-paper">
+        <div className="h-full bg-cherry" style={{ width }} />
+      </div>
+    </div>
+  )
+}
+
 export default function Flyer({
   tag,
   tagClass = 'bg-sun',
@@ -8,11 +23,12 @@ export default function Flyer({
   tab = 'DM on HUS',
   rotate = 0,
   delay = 0,
+  absolute = true,
   className = '',
   children,
 }) {
   return (
-    <article className={`flyer absolute ${className}`} style={{ '--r': `${rotate}deg`, '--d': `${delay}ms` }}>
+    <article className={`flyer ${absolute ? 'absolute' : 'relative'} ${className}`} style={{ '--r': `${0}deg`, '--d': `${delay}ms` }}>
       <span
         className={`absolute left-1/2 top-2 z-10 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-ink ${pinClass} shadow-[0_3px_0_rgba(20,17,15,.35)]`}
         aria-hidden="true"

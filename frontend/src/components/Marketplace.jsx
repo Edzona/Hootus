@@ -1,3 +1,4 @@
+import Flyer from './Flyer'
 import useCampusData from './campus/useCampusData'
 
 export default function Marketplace() {
@@ -21,15 +22,18 @@ export default function Marketplace() {
           <p className="text-ink/60">Nothing for sale right now.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {listings.map((l) => (
-              <article key={l.id} className="border-2 border-ink bg-paper p-5 shadow-hard transition duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard-lg">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="rounded-full border-2 border-ink bg-matcha px-3 py-1 font-mono text-[10px] uppercase tracking-widest">{l.label}</span>
-                  <span className="font-mono text-xs font-bold text-ink/80">{l.price}</span>
-                </div>
-                <h2 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{l.title}</h2>
-                <p className="mt-2 text-sm leading-relaxed text-ink/70">{l.detail}</p>
-              </article>
+            {listings.map((l, i) => (
+              <Flyer
+                key={l.id}
+                tag={l.label}
+                title={l.title}
+                meta={l.detail}
+                price={l.price}
+                tagClass={l.kind === 'housing' ? 'bg-sky' : 'bg-matcha'}
+                tab="DM on HUS"
+                absolute={false}
+                className="w-full"
+              />
             ))}
           </div>
         )}

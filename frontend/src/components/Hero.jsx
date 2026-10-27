@@ -1,4 +1,4 @@
-import Flyer from './Flyer'
+import Flyer, { RsvpBar } from './Flyer'
 import Logo from './Logo'
 import WaitlistForm from './WaitlistForm'
 
@@ -64,15 +64,7 @@ function FlyerBoard() {
         delay={700}
         className="bottom-0 right-[2%] w-[50%] sm:w-[46%]"
       >
-        <div className="mt-3">
-          <div className="flex justify-between font-mono text-[10px] uppercase tracking-widest text-ink/60">
-            <span>RSVPs</span>
-            <span>31 / 40</span>
-          </div>
-          <div className="mt-1 h-2.5 border-2 border-ink bg-paper">
-            <div className="h-full w-[77%] bg-cherry" />
-          </div>
-        </div>
+        <RsvpBar claimed={31} capacity={40} />
       </Flyer>
       <VerifiedBadge className="absolute -top-3 right-0 z-30 hidden sm:block" />
     </div>
