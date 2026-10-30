@@ -2,8 +2,10 @@ import type { RequestHandler } from 'express';
 import { z } from 'zod';
 // Namespace import: the generated query names match the handler names below.
 import * as q from '../generated/messaging.queries.js';
+import { markConversationNotificationsRead } from '../generated/notifications.queries.js';
 import { assertAuthenticated } from '../helpers/auth.js';
 import { HttpError } from '../helpers/errors.js';
+import { notifyMessageByEmail } from '../helpers/mailer.js';
 import { pageSchema } from '../helpers/validation.js';
 import { ErrorCode } from '../types/errorCode.js';
 
@@ -80,6 +82,8 @@ export const getConversationMessages: RequestHandler = async (req, res) => {
     if (!conversation) throw conversationNotFound();
     const rows = await q.getConversationMessages.run(
       { conversationId, limit, before: before ?? null }, tx);
+    // Reading the conversation clears its notification (and re-arms the email).
+    if (!before) await markConversationNotificationsRead.run({ conversationId }, tx);
     return {
       messages: rows.map(m => ({
         id: m.id, body: m.body, createdAt: m.created_at, fromMe: !!m.from_me,
@@ -97,5 +101,8 @@ export const sendMessage: RequestHandler = async (req, res) => {
   const { body } = res.locals.body as z.infer<typeof sendMessageBody>;
   const [message] = await req.db(tx => q.sendMessage.run({ conversationId, body }, tx));
   if (!message) throw conversationNotFound();
+  // After commit. Awaited because serverless may stop work left running after
+  // the response; it never throws, so the message still counts as sent.
+  await notifyMessageByEmail(req.db, message.id);
   res.status(201).json({ data: { id: message.id, createdAt: message.created_at } });
 };

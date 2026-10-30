@@ -31,6 +31,9 @@ role escalation, ownership, feed permissions, message privacy, unconfirmed and
 anonymous access, and publication membership; fixtures roll back. This does not
 test live WebSocket delivery, which requires a connected client.
 
+Run `tests/notifications.sql` the same way. It checks notification grouping,
+privacy, one-time email claims and re-arming after a conversation is read.
+
 ## Email sign-in codes
 
 `config.toml` uses `templates/sign-in-code.html` for both magic-link and signup
