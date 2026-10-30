@@ -66,6 +66,7 @@ export interface IGetListingsResult {
   description: string;
   id: string;
   image_urls: stringArray;
+  is_mine: boolean | null;
   location: string | null;
   price_jpy: number | null;
   status: string;
@@ -79,17 +80,53 @@ export interface IGetListingsQuery {
   result: IGetListingsResult;
 }
 
-const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":261,"b":267}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":281,"b":288}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name from public.listings\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
+const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":325,"b":331}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":345,"b":352}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name,\n(author_id = (select private.current_profile_id())) as is_mine\nfrom public.listings\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
  * ```
  * select public_id as id, category, title, description,
  * price_jpy::double precision as price_jpy, image_urls, location, status,
- * created_at, updated_at, private.author_name(author_id) as author_name from public.listings
+ * created_at, updated_at, private.author_name(author_id) as author_name,
+ * (author_id = (select private.current_profile_id())) as is_mine
+ * from public.listings
  * order by created_at desc, listings.id limit :limit!::int offset :offset!::int
  * ```
  */
 export const getListings = new PreparedQuery<IGetListingsParams,IGetListingsResult>(getListingsIR);
+
+
+/** 'SetListingStatus' parameters type */
+export interface ISetListingStatusParams {
+  id: string;
+  status: string;
+}
+
+/** 'SetListingStatus' return type */
+export interface ISetListingStatusResult {
+  id: string;
+  status: string;
+}
+
+/** 'SetListingStatus' query type */
+export interface ISetListingStatusQuery {
+  params: ISetListingStatusParams;
+  result: ISetListingStatusResult;
+}
+
+const setListingStatusIR: any = {"usedParamSet":{"status":true,"id":true},"params":[{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":89,"b":96}]},{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":116,"b":119}]}],"statement":"-- Only the author can end their own active listing.\nupdate public.listings set status = :status!\nwhere public_id = :id!::uuid\n  and author_id = (select private.current_profile_id())\n  and status = 'active'\nreturning public_id as id, status"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Only the author can end their own active listing.
+ * update public.listings set status = :status!
+ * where public_id = :id!::uuid
+ *   and author_id = (select private.current_profile_id())
+ *   and status = 'active'
+ * returning public_id as id, status
+ * ```
+ */
+export const setListingStatus = new PreparedQuery<ISetListingStatusParams,ISetListingStatusResult>(setListingStatusIR);
 
 

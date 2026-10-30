@@ -1,0 +1,960 @@
+diff --git a/backend/.env.example b/backend/.env.example
+index 514b267..831c32a 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -5,6 +5,13 @@ CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+ # Enable Hootus logs; leave empty to disable. On Vercel set this explicitly.
+ DEBUG=hootus:*
+ 
++# Notification email. Locally this is Supabase's Mailpit SMTP port; enable it with
++# smtp_port = 54325 under [local_smtp] in supabase/config.toml. Leave empty to disable.
++# Hosted: your email provider's SMTP URL, e.g. smtps://USER:PASSWORD@smtp.example.com:465
++SMTP_URL=smtp://127.0.0.1:54325
++MAIL_FROM=Hootus <no-reply@hootus.local>
++NOTIFICATION_LINK_URL=http://localhost:5173/#/beta/listings
++
+ # Server-only dedicated login. Set its password outside migrations.
+ # Local: use your local Postgres port; hosted: use the transaction pooler (6543).
+ DATABASE_URL=postgresql://hootus_server:postgres@127.0.0.1:54322/postgres
+diff --git a/backend/README.md b/backend/README.md
+index 701268d..4e8febf 100644
+--- a/backend/README.md
++++ b/backend/README.md
+@@ -110,6 +110,10 @@ Health returns `{ status: "ok" }` and checks process liveness only.
+ | POST | `/api/feed` | Club leader/admin; perks require admin |
+ | GET | `/api/campus` | Confirmed Temple user; clubs, events, posts, own saved posts, listing suggestions |
+ | PUT | `/api/campus/actions/:action/:id` | Confirmed Temple user; idempotent follow/like/save/rsvp, `{ active: boolean }` |
++| GET | `/api/notifications` | Confirmed Temple user; own notifications, newest first, with `meta.unread` |
++| GET | `/api/notifications/unread-count` | Confirmed Temple user; `{ unread }` |
++| POST | `/api/notifications/:notificationId/read` | Confirmed Temple user; own notification, 204 |
++| POST | `/api/notifications/read-all` | Confirmed Temple user; `{ marked }` |
+ | POST | `/api/campus/clubs/:clubId/posts` | Owning club leader/admin; `{ text, eventId? }` |
+ | POST | `/api/campus/clubs/:clubId/events` | Owning club leader/admin; event details |
+ 
+@@ -310,6 +314,35 @@ runs `npm run build`; it does not generate types or need the local tooling URL.
+ PgTyped parameterizes query values; it does not replace Zod or authorization.
+ TypeScript is pinned to 5.9 because PgTyped CLI currently declares support through 5.
+ 
++## Notifications
++
++Apply `20261030000000_notifications.sql`. A trigger on `messages` creates a
++notification for the recipient. While a conversation's notification is unread,
++new messages increase its `count` instead of adding rows. Loading a
++conversation's newest messages marks its notification read.
++
++Email is sent only when a notification row is created, so a burst of messages
++sends one email until the recipient opens the conversation. The email names the
++sender and listing but never includes the message body. `sendMessage` awaits
++delivery after its transaction commits (serverless may stop work left running
++after the response); email errors are logged and never fail the send.
++
++The recipient's address is private under profiles RLS. Only
++`private.claim_message_email` reads it, for the message's own sender, once.
++`notifications.email_status` records `sent`, `failed` or `skipped` (no
++`SMTP_URL`), which gives delivery reliability for the pilot:
++
++```sql
++select email_status, count(*) from public.notifications group by 1;
++```
++
++Locally, `smtp_port = 54325` under `[local_smtp]` in `supabase/config.toml`
++exposes Mailpit's SMTP port; restart Supabase after changing it. With
++`SMTP_URL=smtp://127.0.0.1:54325`, emails appear in the same Mailpit inbox as
++sign-in codes. In production, set `SMTP_URL` to an email provider's SMTP URL.
++
++Run `supabase/tests/notifications.sql` like `access_control.sql`.
++
+ ## Campus communities
+ 
+ Apply the new `20261022085736_campus_communities.sql` migration after the initial
+diff --git a/backend/package.json b/backend/package.json
+index 32fbb5f..aae5b25 100644
+--- a/backend/package.json
++++ b/backend/package.json
+@@ -27,6 +27,7 @@
+     "dotenv": "18.0.8",
+     "express": "5.3.0",
+     "helmet": "8.3.0",
++    "nodemailer": "10.1.1",
+     "postgres": "3.4.9",
+     "zod": "4.6.7"
+   },
+diff --git a/backend/src/config/env.ts b/backend/src/config/env.ts
+index 13b25e4..c24ebd0 100644
+--- a/backend/src/config/env.ts
++++ b/backend/src/config/env.ts
+@@ -14,6 +14,11 @@ const schema = z.object({
+   CORS_ORIGINS: z.string().default('http://localhost:5173')
+     .transform(value => value.split(',').map(origin => origin.trim()))
+     .pipe(z.array(z.url()).min(1)),
++  // Notification email. Local: smtp://127.0.0.1:54325 (Mailpit). Unset disables email.
++  SMTP_URL: z.preprocess(value => value === '' ? undefined : value, z.url().optional()),
++  MAIL_FROM: z.string().min(1).default('Hootus <no-reply@hootus.local>'),
++  // Where "open Hootus" links in emails point. Update when the real inbox route exists.
++  NOTIFICATION_LINK_URL: z.url().default('http://localhost:5173/#/beta/listings'),
+ });
+ 
+ const result = schema.safeParse(process.env);
+diff --git a/backend/src/controllers/messaging.controller.ts b/backend/src/controllers/messaging.controller.ts
+index 9f98ad5..ccc11ba 100644
+--- a/backend/src/controllers/messaging.controller.ts
++++ b/backend/src/controllers/messaging.controller.ts
+@@ -2,8 +2,10 @@ import type { RequestHandler } from 'express';
+ import { z } from 'zod';
+ // Namespace import: the generated query names match the handler names below.
+ import * as q from '../generated/messaging.queries.js';
++import { markConversationNotificationsRead } from '../generated/notifications.queries.js';
+ import { assertAuthenticated } from '../helpers/auth.js';
+ import { HttpError } from '../helpers/errors.js';
++import { notifyMessageByEmail } from '../helpers/mailer.js';
+ import { pageSchema } from '../helpers/validation.js';
+ import { ErrorCode } from '../types/errorCode.js';
+ 
+@@ -80,6 +82,8 @@ export const getConversationMessages: RequestHandler = async (req, res) => {
+     if (!conversation) throw conversationNotFound();
+     const rows = await q.getConversationMessages.run(
+       { conversationId, limit, before: before ?? null }, tx);
++    // Reading the conversation clears its notification (and re-arms the email).
++    if (!before) await markConversationNotificationsRead.run({ conversationId }, tx);
+     return {
+       messages: rows.map(m => ({
+         id: m.id, body: m.body, createdAt: m.created_at, fromMe: !!m.from_me,
+@@ -97,5 +101,8 @@ export const sendMessage: RequestHandler = async (req, res) => {
+   const { body } = res.locals.body as z.infer<typeof sendMessageBody>;
+   const [message] = await req.db(tx => q.sendMessage.run({ conversationId, body }, tx));
+   if (!message) throw conversationNotFound();
++  // After commit. Awaited because serverless may stop work left running after
++  // the response; it never throws, so the message still counts as sent.
++  await notifyMessageByEmail(req.db, message.id);
+   res.status(201).json({ data: { id: message.id, createdAt: message.created_at } });
+ };
+diff --git a/backend/src/controllers/notifications.controller.ts b/backend/src/controllers/notifications.controller.ts
+new file mode 100644
+index 0000000..10f4a09
+--- /dev/null
++++ b/backend/src/controllers/notifications.controller.ts
+@@ -0,0 +1,52 @@
++import type { RequestHandler } from 'express';
++import { z } from 'zod';
++// Namespace import: the generated query names match the handler names below.
++import * as q from '../generated/notifications.queries.js';
++import { assertAuthenticated } from '../helpers/auth.js';
++import { HttpError } from '../helpers/errors.js';
++import { pageSchema } from '../helpers/validation.js';
++import { ErrorCode } from '../types/errorCode.js';
++
++export const notificationParams = z.strictObject({ notificationId: z.uuid() });
++
++export const getNotifications: RequestHandler = async (req, res) => {
++  assertAuthenticated(req);
++  const page = res.locals.query as z.infer<typeof pageSchema>;
++  const { rows, unread } = await req.db(async tx => ({
++    rows: await q.getNotifications.run(page, tx),
++    unread: (await q.countUnreadNotifications.run(undefined, tx))[0]?.unread ?? 0,
++  }));
++  const data = rows.map(n => ({
++    id: n.id,
++    kind: n.kind,
++    actorName: n.actor_name ?? 'Hootus member',
++    conversation: n.conversation ?? null,
++    listingTitle: n.listing_title ?? null,
++    // Messages grouped into this notification while it was unread.
++    count: n.event_count,
++    createdAt: n.created_at,
++    updatedAt: n.updated_at,
++    read: n.read_at !== null,
++  }));
++  res.set('Cache-Control', 'private, no-store').json({ data, meta: { unread } });
++};
++
++export const getUnreadCount: RequestHandler = async (req, res) => {
++  assertAuthenticated(req);
++  const [row] = await req.db(tx => q.countUnreadNotifications.run(undefined, tx));
++  res.set('Cache-Control', 'private, no-store').json({ data: { unread: row?.unread ?? 0 } });
++};
++
++export const markNotificationRead: RequestHandler = async (req, res) => {
++  assertAuthenticated(req);
++  const { notificationId } = res.locals.params as z.infer<typeof notificationParams>;
++  const [row] = await req.db(tx => q.markNotificationRead.run({ notificationId }, tx));
++  if (!row) throw new HttpError(404, ErrorCode.NotFound, 'That notification no longer exists.');
++  res.status(204).end();
++};
++
++export const markAllNotificationsRead: RequestHandler = async (req, res) => {
++  assertAuthenticated(req);
++  const rows = await req.db(tx => q.markAllNotificationsRead.run(undefined, tx));
++  res.json({ data: { marked: rows.length } });
++};
+diff --git a/backend/src/generated/notifications.queries.ts b/backend/src/generated/notifications.queries.ts
+new file mode 100644
+index 0000000..f04725c
+--- /dev/null
++++ b/backend/src/generated/notifications.queries.ts
+@@ -0,0 +1,222 @@
++/** Types generated for queries found in "../supabase/queries/notifications.sql" */
++import { PreparedQuery } from '@pgtyped/runtime';
++
++/** 'GetNotifications' parameters type */
++export interface IGetNotificationsParams {
++  limit: number;
++  offset: number;
++}
++
++/** 'GetNotifications' return type */
++export interface IGetNotificationsResult {
++  actor_name: string | null;
++  conversation: string;
++  created_at: Date;
++  event_count: number;
++  id: string;
++  kind: string;
++  listing_title: string;
++  read_at: Date | null;
++  updated_at: Date;
++}
++
++/** 'GetNotifications' query type */
++export interface IGetNotificationsQuery {
++  params: IGetNotificationsParams;
++  result: IGetNotificationsResult;
++}
++
++const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":446,"b":452}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":466,"b":473}]}],"statement":"-- RLS limits rows to your own notifications. Newest activity first.\nselect n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,\n  private.author_name(n.actor_id) as actor_name,\n  c.public_id as conversation, l.title as listing_title\nfrom public.notifications n\nleft join public.conversations c on c.id = n.conversation_id\nleft join public.listings l on l.id = c.listing_id\norder by n.updated_at desc, n.id desc\nlimit :limit!::int offset :offset!::int"};
++
++/**
++ * Query generated from SQL:
++ * ```
++ * -- RLS limits rows to your own notifications. Newest activity first.
++ * select n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,
++ *   private.author_name(n.actor_id) as actor_name,
++ *   c.public_id as conversation, l.title as listing_title
++ * from public.notifications n
++ * left join public.conversations c on c.id = n.conversation_id
++ * left join public.listings l on l.id = c.listing_id
++ * order by n.updated_at desc, n.id desc
++ * limit :limit!::int offset :offset!::int
++ * ```
++ */
++export const getNotifications = new PreparedQuery<IGetNotificationsParams,IGetNotificationsResult>(getNotificationsIR);
++
++
++/** 'CountUnreadNotifications' parameters type */
++export type ICountUnreadNotificationsParams = void;
++
++/** 'CountUnreadNotifications' return type */
++export interface ICountUnreadNotificationsResult {
++  unread: number | null;
++}
++
++/** 'CountUnreadNotifications' query type */
++export interface ICountUnreadNotificationsQuery {
++  params: ICountUnreadNotificationsParams;
++  result: ICountUnreadNotificationsResult;
++}
++
++const countUnreadNotificationsIR: any = {"usedParamSet":{},"params":[],"statement":"select count(*)::int as unread from public.notifications where read_at is null"};
++
++/**
++ * Query generated from SQL:
++ * ```
++ * select count(*)::int as unread from public.notifications where read_at is null
++ * ```
++ */
++export const countUnreadNotifications = new PreparedQuery<ICountUnreadNotificationsParams,ICountUnreadNotificationsResult>(countUnreadNotificationsIR);
++
++
++/** 'MarkNotificationRead' parameters type */
++export interface IMarkNotificationReadParams {
++  notificationId: string;
++}
++
++/** 'MarkNotificationRead' return type */
++export interface IMarkNotificationReadResult {
++  id: string;
++}
++
++/** 'MarkNotificationRead' query type */
++export interface IMarkNotificationReadQuery {
++  params: IMarkNotificationReadParams;
++  result: IMarkNotificationReadResult;
++}
++
++const markNotificationReadIR: any = {"usedParamSet":{"notificationId":true},"params":[{"name":"notificationId","required":true,"transform":{"type":"scalar"},"locs":[{"a":140,"b":155}]}],"statement":"-- Zero rows means not found or not yours: return 404.\nupdate public.notifications set read_at = coalesce(read_at, now())\nwhere public_id = :notificationId!::uuid\nreturning public_id as id"};
++
++/**
++ * Query generated from SQL:
++ * ```
++ * -- Zero rows means not found or not yours: return 404.
++ * update public.notifications set read_at = coalesce(read_at, now())
++ * where public_id = :notificationId!::uuid
++ * returning public_id as id
++ * ```
++ */
++export const markNotificationRead = new PreparedQuery<IMarkNotificationReadParams,IMarkNotificationReadResult>(markNotificationReadIR);
++
++
++/** 'MarkAllNotificationsRead' parameters type */
++export type IMarkAllNotificationsReadParams = void;
++
++/** 'MarkAllNotificationsRead' return type */
++export interface IMarkAllNotificationsReadResult {
++  id: string;
++}
++
++/** 'MarkAllNotificationsRead' query type */
++export interface IMarkAllNotificationsReadQuery {
++  params: IMarkAllNotificationsReadParams;
++  result: IMarkAllNotificationsReadResult;
++}
++
++const markAllNotificationsReadIR: any = {"usedParamSet":{},"params":[],"statement":"update public.notifications set read_at = now()\nwhere read_at is null\nreturning public_id as id"};
++
++/**
++ * Query generated from SQL:
++ * ```
++ * update public.notifications set read_at = now()
++ * where read_at is null
++ * returning public_id as id
++ * ```
++ */
++export const markAllNotificationsRead = new PreparedQuery<IMarkAllNotificationsReadParams,IMarkAllNotificationsReadResult>(markAllNotificationsReadIR);
++
++
++/** 'MarkConversationNotificationsRead' parameters type */
++export interface IMarkConversationNotificationsReadParams {
++  conversationId: string;
++}
++
++/** 'MarkConversationNotificationsRead' return type */
++export interface IMarkConversationNotificationsReadResult {
++  id: string;
++}
++
++/** 'MarkConversationNotificationsRead' query type */
++export interface IMarkConversationNotificationsReadQuery {
++  params: IMarkConversationNotificationsReadParams;
++  result: IMarkConversationNotificationsReadResult;
++}
++
++const markConversationNotificationsReadIR: any = {"usedParamSet":{"conversationId":true},"params":[{"name":"conversationId","required":true,"transform":{"type":"scalar"},"locs":[{"a":180,"b":195}]}],"statement":"-- Opening a conversation clears its notification.\nupdate public.notifications n set read_at = now()\nfrom public.conversations c\nwhere c.id = n.conversation_id\n  and c.public_id = :conversationId!::uuid\n  and n.read_at is null\nreturning n.public_id as id"};
++
++/**
++ * Query generated from SQL:
++ * ```
++ * -- Opening a conversation clears its notification.
++ * update public.notifications n set read_at = now()
++ * from public.conversations c
++ * where c.id = n.conversation_id
++ *   and c.public_id = :conversationId!::uuid
++ *   and n.read_at is null
++ * returning n.public_id as id
++ * ```
++ */
++export const markConversationNotificationsRead = new PreparedQuery<IMarkConversationNotificationsReadParams,IMarkConversationNotificationsReadResult>(markConversationNotificationsReadIR);
++
++
++/** 'ClaimMessageEmail' parameters type */
++export interface IClaimMessageEmailParams {
++  messageId: string;
++}
++
++/** 'ClaimMessageEmail' return type */
++export interface IClaimMessageEmailResult {
++  listing_title: string | null;
++  notification_id: string | null;
++  recipient_email: string | null;
++  recipient_name: string | null;
++  sender_name: string | null;
++}
++
++/** 'ClaimMessageEmail' query type */
++export interface IClaimMessageEmailQuery {
++  params: IClaimMessageEmailParams;
++  result: IClaimMessageEmailResult;
++}
++
++const claimMessageEmailIR: any = {"usedParamSet":{"messageId":true},"params":[{"name":"messageId","required":true,"transform":{"type":"scalar"},"locs":[{"a":132,"b":142}]}],"statement":"-- Zero rows means no email is due (the conversation already had an unread notification).\nselect * from private.claim_message_email(:messageId!::uuid)"};
++
++/**
++ * Query generated from SQL:
++ * ```
++ * -- Zero rows means no email is due (the conversation already had an unread notification).
++ * select * from private.claim_message_email(:messageId!::uuid)
++ * ```
++ */
++export const claimMessageEmail = new PreparedQuery<IClaimMessageEmailParams,IClaimMessageEmailResult>(claimMessageEmailIR);
++
++
++/** 'FinishNotificationEmail' parameters type */
++export interface IFinishNotificationEmailParams {
++  notificationId: string;
++  outcome: string;
++}
++
++/** 'FinishNotificationEmail' return type */
++export interface IFinishNotificationEmailResult {
++  finished: boolean | null;
++}
++
++/** 'FinishNotificationEmail' query type */
++export interface IFinishNotificationEmailQuery {
++  params: IFinishNotificationEmailParams;
++  result: IFinishNotificationEmailResult;
++}
++
++const finishNotificationEmailIR: any = {"usedParamSet":{"notificationId":true,"outcome":true},"params":[{"name":"notificationId","required":true,"transform":{"type":"scalar"},"locs":[{"a":41,"b":56}]},{"name":"outcome","required":true,"transform":{"type":"scalar"},"locs":[{"a":65,"b":73}]}],"statement":"select private.finish_notification_email(:notificationId!::uuid, :outcome!::text) as finished"};
++
++/**
++ * Query generated from SQL:
++ * ```
++ * select private.finish_notification_email(:notificationId!::uuid, :outcome!::text) as finished
++ * ```
++ */
++export const finishNotificationEmail = new PreparedQuery<IFinishNotificationEmailParams,IFinishNotificationEmailResult>(finishNotificationEmailIR);
++
++
+diff --git a/backend/src/helpers/mailer.ts b/backend/src/helpers/mailer.ts
+new file mode 100644
+index 0000000..2dccbe7
+--- /dev/null
++++ b/backend/src/helpers/mailer.ts
+@@ -0,0 +1,56 @@
++import nodemailer from 'nodemailer';
++import { env } from '../config/env.js';
++import type { UserDatabase } from '../config/database.js';
++import * as q from '../generated/notifications.queries.js';
++import { logger } from './logger.js';
++import { type EmailContent, messageEmail } from './notificationEmail.js';
++
++let transport: ReturnType<typeof nodemailer.createTransport> | undefined;
++
++// Short timeouts: the sender's request waits for this (serverless may stop
++// work left running after the response), so a slow SMTP server must not hang it.
++function getTransport() {
++  transport ??= nodemailer.createTransport({
++    url: env.SMTP_URL,
++    connectionTimeout: 5000,
++    greetingTimeout: 5000,
++    socketTimeout: 10000,
++  });
++  return transport;
++}
++
++export async function sendEmail(to: string, content: EmailContent) {
++  // Addresses are never built from user-written text: `to` comes from
++  // profiles.email (constrained to @temple.edu) and `from` from env.
++  await getTransport().sendMail({ from: env.MAIL_FROM, to, ...content });
++}
++
++// Called after the message's transaction has committed. Never throws: a failed
++// email must not turn a sent message into an error for the sender.
++export async function notifyMessageByEmail(db: UserDatabase, messageId: string) {
++  try {
++    const [claim] = await db(tx => q.claimMessageEmail.run({ messageId }, tx));
++    // No row: the conversation already had an unread notification (or no email is due).
++    if (!claim?.notification_id) return;
++    let outcome: 'sent' | 'failed' | 'skipped' = 'skipped';
++    if (env.SMTP_URL && claim.recipient_email) {
++      try {
++        await sendEmail(claim.recipient_email, messageEmail({
++          recipientName: claim.recipient_name,
++          senderName: claim.sender_name,
++          listingTitle: claim.listing_title,
++          link: env.NOTIFICATION_LINK_URL,
++        }));
++        outcome = 'sent';
++      } catch (error) {
++        outcome = 'failed';
++        // Log the failure kind only; no addresses or message content.
++        logger.warn('notification email failed: %s', error instanceof Error ? error.name : 'unknown');
++      }
++    }
++    const notificationId = claim.notification_id;
++    await db(tx => q.finishNotificationEmail.run({ notificationId, outcome }, tx));
++  } catch (error) {
++    logger.error('notification email bookkeeping failed: %s', error instanceof Error ? error.message : 'unknown');
++  }
++}
+diff --git a/backend/src/helpers/notificationEmail.ts b/backend/src/helpers/notificationEmail.ts
+new file mode 100644
+index 0000000..0901109
+--- /dev/null
++++ b/backend/src/helpers/notificationEmail.ts
+@@ -0,0 +1,47 @@
++// Pure functions only: no env import, so unit tests run without a .env.
++
++export interface MessageEmailInput {
++  recipientName: string | null;
++  senderName: string | null;
++  listingTitle: string | null;
++  link: string;
++}
++
++export interface EmailContent {
++  subject: string;
++  text: string;
++  html: string;
++}
++
++const html = (value: string) => value.replace(/[&<>"']/g, ch => ({
++  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
++}[ch]!));
++
++// Names and titles are user-written; keep them on one short line in the subject.
++const oneLine = (value: string, max: number) => {
++  const clean = value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
++  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
++};
++
++// The message body is deliberately left out: it stays in Hootus, not in
++// inboxes and email-provider logs.
++export function messageEmail(input: MessageEmailInput): EmailContent {
++  const sender = oneLine(input.senderName || 'A Hootus member', 60);
++  const title = input.listingTitle ? oneLine(input.listingTitle, 80) : null;
++  const greeting = input.recipientName ? `Hi ${oneLine(input.recipientName, 60)},` : 'Hi,';
++  const about = title ? ` about "${title}"` : '';
++  const subject = `${sender} sent you a message${about}`;
++  const text = [
++    greeting,
++    '',
++    `${sender} sent you a message on Hootus${about}.`,
++    `Open Hootus to read and reply: ${input.link}`,
++    '',
++    "You'll get one email per conversation until you open it.",
++  ].join('\n');
++  const htmlBody = `<p>${html(greeting)}</p>
++<p><strong>${html(sender)}</strong> sent you a message on Hootus${title ? ` about <strong>${html(title)}</strong>` : ''}.</p>
++<p><a href="${html(input.link)}">Open Hootus to read and reply</a></p>
++<p style="color:#666;font-size:12px">You'll get one email per conversation until you open it.</p>`;
++  return { subject, text, html: htmlBody };
++}
+diff --git a/backend/src/routes/index.ts b/backend/src/routes/index.ts
+index b62276e..a35256a 100644
+--- a/backend/src/routes/index.ts
++++ b/backend/src/routes/index.ts
+@@ -7,6 +7,7 @@ import { authRoutes } from "./auth.routes.js";
+ import { requireAuth } from "../middleware/auth.js";
+ import { campusRoutes } from "./campus.routes.js";
+ import { messagingRoutes } from "./messaging.routes.js";
++import { notificationsRoutes } from "./notifications.routes.js";
+ 
+ export const routes = Router();
+ const protectedRoutes = Router();
+@@ -22,4 +23,5 @@ protectedRoutes.use("/feed", feedRoutes);
+ protectedRoutes.use("/profile", profileRoutes);
+ protectedRoutes.use("/campus", campusRoutes);
+ protectedRoutes.use("/messaging", messagingRoutes);
++protectedRoutes.use("/notifications", notificationsRoutes);
+ routes.use(protectedRoutes);
+diff --git a/backend/src/routes/notifications.routes.ts b/backend/src/routes/notifications.routes.ts
+new file mode 100644
+index 0000000..2def284
+--- /dev/null
++++ b/backend/src/routes/notifications.routes.ts
+@@ -0,0 +1,21 @@
++import { Router } from "express";
++import { pageSchema } from "../helpers/validation.js";
++import { validate } from "../middleware/validate.js";
++import {
++  getNotifications,
++  getUnreadCount,
++  markNotificationRead,
++  markAllNotificationsRead,
++  notificationParams,
++} from "../controllers/notifications.controller.js";
++
++export const notificationsRoutes = Router();
++
++notificationsRoutes.get("/", validate(pageSchema, "query"), getNotifications);
++notificationsRoutes.get("/unread-count", getUnreadCount);
++notificationsRoutes.post("/read-all", markAllNotificationsRead);
++notificationsRoutes.post(
++  "/:notificationId/read",
++  validate(notificationParams, "params"),
++  markNotificationRead,
++);
+diff --git a/backend/tests/notificationEmail.test.ts b/backend/tests/notificationEmail.test.ts
+new file mode 100644
+index 0000000..97b57b4
+--- /dev/null
++++ b/backend/tests/notificationEmail.test.ts
+@@ -0,0 +1,37 @@
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++import { messageEmail } from '../src/helpers/notificationEmail.js';
++
++const link = 'http://localhost:5173/#/beta/listings';
++
++test('message email names sender and listing, links to Hootus', () => {
++  const email = messageEmail({ recipientName: 'Sam', senderName: 'Bea', listingTitle: 'IKEA desk', link });
++  assert.equal(email.subject, 'Bea sent you a message about "IKEA desk"');
++  assert.match(email.text, /^Hi Sam,/);
++  assert.ok(email.text.includes(link));
++  assert.ok(email.html.includes(`href="${link}"`));
++});
++
++test('message email escapes user-written names and titles', () => {
++  const email = messageEmail({
++    recipientName: '<b>Sam</b>', senderName: 'Bea <script>alert(1)</script>',
++    listingTitle: 'Desk "& chair"', link,
++  });
++  assert.ok(!email.html.includes('<script>'));
++  assert.ok(!email.html.includes('<b>Sam</b>'));
++  assert.ok(email.html.includes('Desk &quot;&amp; chair&quot;'));
++});
++
++test('message email keeps the subject on one short line', () => {
++  const email = messageEmail({
++    recipientName: null, senderName: 'Bea\r\nBcc: someone@example.com', listingTitle: 'x'.repeat(200), link,
++  });
++  assert.ok(!/[\r\n]/.test(email.subject));
++  assert.ok(email.subject.length < 170);
++  assert.match(email.text, /^Hi,/);
++});
++
++test('message email falls back when names are missing', () => {
++  const email = messageEmail({ recipientName: null, senderName: null, listingTitle: null, link });
++  assert.equal(email.subject, 'A Hootus member sent you a message');
++});
+diff --git a/supabase/README.md b/supabase/README.md
+index 2d03fb9..1d488ce 100644
+--- a/supabase/README.md
++++ b/supabase/README.md
+@@ -31,6 +31,9 @@ role escalation, ownership, feed permissions, message privacy, unconfirmed and
+ anonymous access, and publication membership; fixtures roll back. This does not
+ test live WebSocket delivery, which requires a connected client.
+ 
++Run `tests/notifications.sql` the same way. It checks notification grouping,
++privacy, one-time email claims and re-arming after a conversation is read.
++
+ ## Email sign-in codes
+ 
+ `config.toml` uses `templates/sign-in-code.html` for both magic-link and signup
+diff --git a/supabase/config.toml b/supabase/config.toml
+index e643c02..7afcc5c 100644
+--- a/supabase/config.toml
++++ b/supabase/config.toml
+@@ -108,7 +108,7 @@ enabled = true
+ # Port to use for the email testing server web interface.
+ port = 54324
+ # Uncomment to expose additional ports for testing user applications that send emails.
+-# smtp_port = 54325
++smtp_port = 54325
+ # pop3_port = 54326
+ # admin_email = "admin@email.com"
+ # sender_name = "Admin"
+diff --git a/supabase/migrations/20261030000000_notifications.sql b/supabase/migrations/20261030000000_notifications.sql
+new file mode 100644
+index 0000000..cbef3b3
+--- /dev/null
++++ b/supabase/migrations/20261030000000_notifications.sql
+@@ -0,0 +1,125 @@
++-- Notifications: things a member should hear about, delivered by one or more
++-- channels (email now; browser push and an in-app bell later).
++--
++-- Messages are grouped: while a conversation's notification is unread, new
++-- messages bump it instead of creating another row. Email is only sent when a
++-- row is created, so a back-and-forth chat sends one email, not one per message.
++create table public.notifications (
++  id bigint generated always as identity primary key,
++  public_id uuid not null unique default gen_random_uuid(),
++  recipient_id bigint not null references public.profiles(id) on delete cascade,
++  kind text not null check (kind in ('message')),
++  -- Who caused it. Kept nullable so later kinds (club posts) can omit it.
++  actor_id bigint references public.profiles(id) on delete set null,
++  conversation_id bigint references public.conversations(id) on delete cascade,
++  -- The message that created this row; email delivery is tied to it.
++  first_message_id bigint references public.messages(id) on delete set null,
++  event_count integer not null default 1 check (event_count > 0),
++  created_at timestamptz not null default now(),
++  updated_at timestamptz not null default now(),
++  read_at timestamptz,
++  -- Delivery bookkeeping, so email reliability can be measured for the pilot.
++  email_status text not null default 'pending'
++    check (email_status in ('pending', 'sending', 'sent', 'failed', 'skipped')),
++  email_attempted_at timestamptz,
++  check (kind <> 'message' or conversation_id is not null)
++);
++
++create index notifications_recipient_idx on public.notifications (recipient_id, updated_at desc);
++-- At most one unread message notification per conversation and recipient.
++create unique index notifications_one_unread_conversation
++  on public.notifications (recipient_id, conversation_id)
++  where read_at is null and kind = 'message';
++
++create function private.notify_message()
++returns trigger
++language plpgsql security definer set search_path = ''
++as $$
++begin
++  insert into public.notifications (recipient_id, kind, actor_id, conversation_id, first_message_id)
++  values (new.recipient_id, 'message', new.sender_id, new.conversation_id, new.id)
++  on conflict (recipient_id, conversation_id) where read_at is null and kind = 'message'
++  do update set
++    event_count = public.notifications.event_count + 1,
++    actor_id = excluded.actor_id,
++    updated_at = excluded.updated_at;
++  return new;
++end;
++$$;
++revoke all on function private.notify_message() from public, anon, authenticated, hootus_api;
++
++create trigger messages_notify
++after insert on public.messages
++for each row when (new.conversation_id is not null)
++execute function private.notify_message();
++
++-- The sender's API request claims the email for the notification its message
++-- created. The recipient's address is private (profiles RLS), so only this
++-- function reads it, only for the message's own sender, and only once.
++create function private.claim_message_email(message_public_id uuid)
++returns table (
++  notification_id uuid,
++  recipient_email text,
++  recipient_name text,
++  sender_name text,
++  listing_title text
++)
++language sql volatile security definer set search_path = ''
++as $$
++  update public.notifications n
++  set email_status = 'sending', email_attempted_at = now()
++  from public.messages m
++  join public.conversations c on c.id = m.conversation_id
++  join public.listings l on l.id = c.listing_id
++  join public.profiles r on r.id = m.recipient_id
++  where m.public_id = message_public_id
++    and m.sender_id = (select private.current_profile_id())
++    and (select private.current_role()) is not null
++    and n.first_message_id = m.id
++    and n.email_status = 'pending'
++  returning n.public_id, r.email, r.full_name,
++    (select p.full_name from public.profiles p where p.id = m.sender_id), l.title
++$$;
++revoke all on function private.claim_message_email(uuid) from public, anon, authenticated, hootus_api;
++grant execute on function private.claim_message_email(uuid) to hootus_api;
++
++-- Record the outcome of a claimed email. Only the claiming sender can finish it,
++-- and only a row that is still 'sending'.
++create function private.finish_notification_email(notification_public_id uuid, outcome text)
++returns boolean
++language sql volatile security definer set search_path = ''
++as $$
++  with done as (
++    update public.notifications n
++    set email_status = outcome
++    from public.messages m
++    where n.public_id = notification_public_id
++      and outcome in ('sent', 'failed', 'skipped')
++      and n.email_status = 'sending'
++      and m.id = n.first_message_id
++      and m.sender_id = (select private.current_profile_id())
++      and (select private.current_role()) is not null
++    returning 1
++  )
++  select exists (select 1 from done)
++$$;
++revoke all on function private.finish_notification_email(uuid, text) from public, anon, authenticated, hootus_api;
++grant execute on function private.finish_notification_email(uuid, text) to hootus_api;
++
++alter table public.notifications enable row level security;
++
++revoke all on sequence public.notifications_id_seq from public, anon, authenticated, hootus_api;
++revoke all on public.notifications from public, anon, authenticated, hootus_api;
++-- Rows are created by the trigger only. Members may read theirs and mark them read.
++grant select on public.notifications to hootus_api;
++grant update (read_at) on public.notifications to hootus_api;
++
++create policy notifications_read on public.notifications for select to hootus_api
++using ((select private.current_role()) is not null
++  and recipient_id = (select private.current_profile_id()));
++
++create policy notifications_mark_read on public.notifications for update to hootus_api
++using ((select private.current_role()) is not null
++  and recipient_id = (select private.current_profile_id()))
++with check ((select private.current_role()) is not null
++  and recipient_id = (select private.current_profile_id()));
+diff --git a/supabase/queries/notifications.sql b/supabase/queries/notifications.sql
+new file mode 100644
+index 0000000..0135c5c
+--- /dev/null
++++ b/supabase/queries/notifications.sql
+@@ -0,0 +1,40 @@
++/* @name GetNotifications */
++-- RLS limits rows to your own notifications. Newest activity first.
++select n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,
++  private.author_name(n.actor_id) as actor_name,
++  c.public_id as conversation, l.title as listing_title
++from public.notifications n
++left join public.conversations c on c.id = n.conversation_id
++left join public.listings l on l.id = c.listing_id
++order by n.updated_at desc, n.id desc
++limit :limit!::int offset :offset!::int;
++
++/* @name CountUnreadNotifications */
++select count(*)::int as unread from public.notifications where read_at is null;
++
++/* @name MarkNotificationRead */
++-- Zero rows means not found or not yours: return 404.
++update public.notifications set read_at = coalesce(read_at, now())
++where public_id = :notificationId!::uuid
++returning public_id as id;
++
++/* @name MarkAllNotificationsRead */
++update public.notifications set read_at = now()
++where read_at is null
++returning public_id as id;
++
++/* @name MarkConversationNotificationsRead */
++-- Opening a conversation clears its notification.
++update public.notifications n set read_at = now()
++from public.conversations c
++where c.id = n.conversation_id
++  and c.public_id = :conversationId!::uuid
++  and n.read_at is null
++returning n.public_id as id;
++
++/* @name ClaimMessageEmail */
++-- Zero rows means no email is due (the conversation already had an unread notification).
++select * from private.claim_message_email(:messageId!::uuid);
++
++/* @name FinishNotificationEmail */
++select private.finish_notification_email(:notificationId!::uuid, :outcome!::text) as finished;
+diff --git a/supabase/tests/notifications.sql b/supabase/tests/notifications.sql
+new file mode 100644
+index 0000000..4fbd403
+--- /dev/null
++++ b/supabase/tests/notifications.sql
+@@ -0,0 +1,131 @@
++-- Run as postgres in a disposable Supabase project's SQL Editor after migration,
++-- like access_control.sql. All fixtures roll back. Any failure raises an exception.
++begin;
++
++grant hootus_api to postgres;
++
++-- seller (01), buyer (02), outsider (03)
++insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
++values
++  ('20000000-0000-0000-0000-000000000001', 'hootus-notify-seller@temple.edu', now(), '{"full_name":"Sam Seller"}'),
++  ('20000000-0000-0000-0000-000000000002', 'hootus-notify-buyer@temple.edu', now(), '{"full_name":"Bea Buyer"}'),
++  ('20000000-0000-0000-0000-000000000003', 'hootus-notify-outsider@temple.edu', now(), '{}');
++
++set local role hootus_api;
++
++-- Seller lists a desk.
++select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000001', true);
++insert into public.listings (category, title, price_jpy) values ('sales', 'Notify desk', 1500);
++
++-- Buyer starts a conversation and sends two messages.
++select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000002', true);
++insert into public.conversations (listing_id, seller_id)
++select id, author_id from public.listings where title = 'Notify desk';
++
++create temporary table test_messages (n int, public_id uuid) on commit drop;
++grant all on test_messages to hootus_api;
++
++with sent as (
++  insert into public.messages (conversation_id, recipient_id, body)
++  select c.id, c.seller_id, 'Is it available?' from public.conversations c
++  returning public_id
++) insert into test_messages select 1, public_id from sent;
++with sent as (
++  insert into public.messages (conversation_id, recipient_id, body)
++  select c.id, c.seller_id, 'Can I pick it up today?' from public.conversations c
++  returning public_id
++) insert into test_messages select 2, public_id from sent;
++
++do $$
++declare
++  claimed record;
++begin
++  assert (select count(*) = 0 from public.notifications), 'Buyer must not see the seller''s notification';
++
++  -- Only the first message's email is due, and only once.
++  assert (select count(*) = 0 from private.claim_message_email(
++    (select public_id from test_messages where n = 2))), 'Second unread message must not email again';
++  select * into claimed from private.claim_message_email((select public_id from test_messages where n = 1));
++  assert claimed.recipient_email = 'hootus-notify-seller@temple.edu', 'Claim must return the recipient address';
++  assert claimed.sender_name = 'Bea Buyer' and claimed.listing_title = 'Notify desk', 'Claim must describe the message';
++  assert (select count(*) = 0 from private.claim_message_email(
++    (select public_id from test_messages where n = 1))), 'An email must only be claimed once';
++
++  assert not private.finish_notification_email(claimed.notification_id, 'delivered'), 'Unknown outcomes are rejected';
++  assert private.finish_notification_email(claimed.notification_id, 'sent'), 'Sender records the outcome';
++  assert not private.finish_notification_email(claimed.notification_id, 'failed'), 'An outcome is final';
++
++  begin
++    insert into public.notifications (recipient_id, kind, conversation_id)
++    select seller_id, 'message', id from public.conversations;
++    raise exception 'Members must not create notifications directly';
++  exception when insufficient_privilege then null;
++  end;
++end;
++$$;
++
++-- Outsider sees and changes nothing, and cannot claim or finish.
++select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000003', true);
++do $$
++begin
++  assert (select count(*) = 0 from public.notifications), 'Outsider must see no notifications';
++  assert (select count(*) = 0 from private.claim_message_email(
++    (select public_id from test_messages where n = 1))), 'Outsider must not claim another sender''s email';
++end;
++$$;
++update public.notifications set read_at = now();
++
++-- Seller sees one grouped notification, and the email address never leaks to them via claims either.
++select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000001', true);
++do $$
++begin
++  assert (select count(*) = 1 and min(event_count) = 2 and bool_and(read_at is null)
++    from public.notifications), 'Seller must see one unread notification grouping both messages';
++  assert (select min(email_status) = 'sent' from public.notifications), 'Email outcome must be recorded';
++  assert (select count(*) = 0 from private.claim_message_email(
++    (select public_id from test_messages where n = 2))), 'Recipient must not claim the sender''s email';
++  begin
++    update public.notifications set email_status = 'pending';
++    raise exception 'Members must not change delivery status';
++  exception when insufficient_privilege then null;
++  end;
++end;
++$$;
++
++-- Seller opens the conversation (same statement as MarkConversationNotificationsRead) and replies.
++update public.notifications n set read_at = now()
++from public.conversations c where c.id = n.conversation_id and n.read_at is null;
++insert into public.messages (conversation_id, recipient_id, body)
++select c.id, c.buyer_id, 'Yes, any time after 3.' from public.conversations c;
++
++-- Buyer messages again: the read notification is not reused, a new one is armed.
++select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000002', true);
++do $$
++begin
++  assert (select count(*) = 1 and min(email_status) = 'pending' from public.notifications),
++    'Buyer must get a notification for the seller''s reply';
++end;
++$$;
++with sent as (
++  insert into public.messages (conversation_id, recipient_id, body)
++  select c.id, c.seller_id, 'Great, see you then.' from public.conversations c
++  returning public_id
++) insert into test_messages select 3, public_id from sent;
++do $$
++begin
++  assert (select count(*) = 1 from private.claim_message_email(
++    (select public_id from test_messages where n = 3))), 'A new message after reading must email again';
++end;
++$$;
++
++select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000001', true);
++do $$
++begin
++  assert (select count(*) = 2 and count(*) filter (where read_at is null) = 1
++    from public.notifications), 'Seller keeps the read notification and gets one new unread one';
++end;
++$$;
++
++reset role;
++select 'notifications tests passed' as result;
++rollback;
