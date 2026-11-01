@@ -33,6 +33,8 @@ test live WebSocket delivery, which requires a connected client.
 
 Run `tests/notifications.sql` the same way. It checks notification grouping,
 privacy, one-time email claims and re-arming after a conversation is read.
+`tests/push.sql` checks device privacy, one-time push claims, dead-device
+cleanup and moving an endpoint when another account signs in on that browser.
 
 ## Email sign-in codes
 

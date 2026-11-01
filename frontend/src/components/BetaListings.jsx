@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Wordmark } from './Logo'
 import { apiRequest } from '../lib/api'
+import PushToggle from './PushToggle'
 import { supabase } from '../lib/supabase'
 import { LISTING_PHOTO_LIMIT, removeListingPhotos, uploadListingPhotos } from '../lib/listingPhotos'
 
@@ -260,6 +261,7 @@ export default function BetaListings() {
 
             <section aria-labelledby="inbox-title">
               <h2 id="inbox-title" className="font-display text-3xl font-extrabold">Inbox</h2>
+              <PushToggle />
               <ul className="mt-4 divide-y-2 divide-ink border-2 border-ink bg-white">
                 {inbox.length === 0 && <li className="p-4 text-ink/60">No conversations yet.</li>}
                 {inbox.map(c => (

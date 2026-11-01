@@ -114,6 +114,9 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | GET | `/api/notifications/unread-count` | Confirmed Temple user; `{ unread }` |
 | POST | `/api/notifications/:notificationId/read` | Confirmed Temple user; own notification, 204 |
 | POST | `/api/notifications/read-all` | Confirmed Temple user; `{ marked }` |
+| GET | `/api/push/config` | Confirmed Temple user; `{ publicKey, devices }`, `publicKey` null when push is off |
+| POST | `/api/push/subscriptions` | Confirmed Temple user; the browser's `PushSubscription.toJSON()` |
+| DELETE | `/api/push/subscriptions` | Confirmed Temple user; `{ endpoint }`, own devices only, 204 |
 | POST | `/api/campus/clubs/:clubId/posts` | Owning club leader/admin; `{ text, eventId? }` |
 | POST | `/api/campus/clubs/:clubId/events` | Owning club leader/admin; event details |
 
@@ -342,6 +345,36 @@ exposes Mailpit's SMTP port; restart Supabase after changing it. With
 sign-in codes. In production, set `SMTP_URL` to an email provider's SMTP URL.
 
 Run `supabase/tests/notifications.sql` like `access_control.sql`.
+
+### Browser push
+
+Apply `20261101000000_push_subscriptions.sql`. Each browser that turns on
+notifications saves one `push_subscriptions` row: an endpoint on the browser
+vendor's push service plus the browser's encryption keys. A message's
+notification is pushed to every device of the recipient once, at the same moment
+the email is claimed, and tracked in `notifications.push_status`. Devices the
+push service reports as gone (404/410) are deleted.
+
+Generate server keys once and put them in `backend/.env` with
+`VAPID_SUBJECT=mailto:you@temple.edu`:
+
+```
+npx web-push generate-vapid-keys
+```
+
+Keep `VAPID_PRIVATE_KEY` secret. Changing the keys invalidates every saved
+subscription. Without keys, `/api/push/config` returns `publicKey: null` and push
+is skipped.
+
+The backend sends requests to whatever endpoint a browser registered, so
+endpoints are limited to Google, Mozilla, Microsoft and Apple push hosts
+(`src/helpers/pushContent.ts`). If a supported browser fails with "Unsupported
+push service", check its endpoint host and extend that list.
+
+The dev beta page (`#/beta/listings`) has a "Turn on notifications on this
+device" button. `frontend/public/sw.js` shows the notification and opens Hootus
+when it is clicked. Payloads name the sender and listing, never the message.
+Run `supabase/tests/push.sql` like the other SQL tests.
 
 ## Campus communities
 
