@@ -110,6 +110,13 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | POST | `/api/feed` | Club leader/admin; perks require admin |
 | GET | `/api/campus` | Confirmed Temple user; clubs, events, posts, own saved posts, listing suggestions |
 | PUT | `/api/campus/actions/:action/:id` | Confirmed Temple user; idempotent follow/like/save/rsvp, `{ active: boolean }` |
+| GET | `/api/notifications` | Confirmed Temple user; own notifications, newest first, with `meta.unread` |
+| GET | `/api/notifications/unread-count` | Confirmed Temple user; `{ unread }` |
+| POST | `/api/notifications/:notificationId/read` | Confirmed Temple user; own notification, 204 |
+| POST | `/api/notifications/read-all` | Confirmed Temple user; `{ marked }` |
+| GET | `/api/push/config` | Confirmed Temple user; `{ publicKey, devices }`, `publicKey` null when push is off |
+| POST | `/api/push/subscriptions` | Confirmed Temple user; the browser's `PushSubscription.toJSON()` |
+| DELETE | `/api/push/subscriptions` | Confirmed Temple user; `{ endpoint }`, own devices only, 204 |
 | POST | `/api/campus/clubs/:clubId/posts` | Owning club leader/admin; `{ text, eventId? }` |
 | POST | `/api/campus/clubs/:clubId/events` | Owning club leader/admin; event details |
 
@@ -309,6 +316,65 @@ continues to use its restricted `DATABASE_URL`, transactions, and RLS. Vercel on
 runs `npm run build`; it does not generate types or need the local tooling URL.
 PgTyped parameterizes query values; it does not replace Zod or authorization.
 TypeScript is pinned to 5.9 because PgTyped CLI currently declares support through 5.
+
+## Notifications
+
+Apply `20261030000000_notifications.sql`. A trigger on `messages` creates a
+notification for the recipient. While a conversation's notification is unread,
+new messages increase its `count` instead of adding rows. Loading a
+conversation's newest messages marks its notification read.
+
+Email is sent only when a notification row is created, so a burst of messages
+sends one email until the recipient opens the conversation. The email names the
+sender and listing but never includes the message body. `sendMessage` awaits
+delivery after its transaction commits (serverless may stop work left running
+after the response); email errors are logged and never fail the send.
+
+The recipient's address is private under profiles RLS. Only
+`private.claim_message_email` reads it, for the message's own sender, once.
+`notifications.email_status` records `sent`, `failed` or `skipped` (no
+`SMTP_URL`), which gives delivery reliability for the pilot:
+
+```sql
+select email_status, count(*) from public.notifications group by 1;
+```
+
+Locally, `smtp_port = 54325` under `[local_smtp]` in `supabase/config.toml`
+exposes Mailpit's SMTP port; restart Supabase after changing it. With
+`SMTP_URL=smtp://127.0.0.1:54325`, emails appear in the same Mailpit inbox as
+sign-in codes. In production, set `SMTP_URL` to an email provider's SMTP URL.
+
+Run `supabase/tests/notifications.sql` like `access_control.sql`.
+
+### Browser push
+
+Apply `20261101000000_push_subscriptions.sql`. Each browser that turns on
+notifications saves one `push_subscriptions` row: an endpoint on the browser
+vendor's push service plus the browser's encryption keys. A message's
+notification is pushed to every device of the recipient once, at the same moment
+the email is claimed, and tracked in `notifications.push_status`. Devices the
+push service reports as gone (404/410) are deleted.
+
+Generate server keys once and put them in `backend/.env` with
+`VAPID_SUBJECT=mailto:you@temple.edu`:
+
+```
+npx web-push generate-vapid-keys
+```
+
+Keep `VAPID_PRIVATE_KEY` secret. Changing the keys invalidates every saved
+subscription. Without keys, `/api/push/config` returns `publicKey: null` and push
+is skipped.
+
+The backend sends requests to whatever endpoint a browser registered, so
+endpoints are limited to Google, Mozilla, Microsoft and Apple push hosts
+(`src/helpers/pushContent.ts`). If a supported browser fails with "Unsupported
+push service", check its endpoint host and extend that list.
+
+The dev beta page (`#/beta/listings`) has a "Turn on notifications on this
+device" button. `frontend/public/sw.js` shows the notification and opens Hootus
+when it is clicked. Payloads name the sender and listing, never the message.
+Run `supabase/tests/push.sql` like the other SQL tests.
 
 ## Campus communities
 
