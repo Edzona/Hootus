@@ -2,6 +2,7 @@ import {
   createListing as insertPost,
   getListings as selectPosts,
   setListingStatus as updateStatus,
+  getMySoldListings as selectMySold,
 } from "../generated/listings.queries.js";
 import { withAuthor } from "../helpers/authors.js";
 import { pageSchema } from "../helpers/validation.js";
@@ -60,6 +61,13 @@ export const getListings: RequestHandler = async (req, res) => {
   const { limit, offset } = res.locals.query as z.infer<typeof pageSchema>;
   const data = await req.db((tx) => selectPosts.run({ limit, offset }, tx));
   res.json({ data: data.map(withAuthor) });
+};
+
+export const getMySoldListings: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { limit, offset } = res.locals.query as z.infer<typeof pageSchema>;
+  const data = await req.db((tx) => selectMySold.run({ limit, offset }, tx));
+  res.json({ data });
 };
 
 export const listingStatusParams = z.strictObject({ id: z.uuid() });

@@ -8,6 +8,7 @@ import {
   setListingStatus,
   listingStatusParams,
   listingStatusBody,
+  getMySoldListings,
 } from "../controllers/listings.controller.js";
 export const listingsRoutes = Router();
 listingsRoutes.patch(
@@ -17,5 +18,6 @@ listingsRoutes.patch(
   setListingStatus,
 );
 
+listingsRoutes.get("/mine/sold", validate(pageSchema, "query"), getMySoldListings);
 listingsRoutes.get("/", validate(pageSchema, "query"), getListings);
 listingsRoutes.post("/", validate(listingSchema), createListing);

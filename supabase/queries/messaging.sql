@@ -35,6 +35,9 @@ left join lateral (
   where conversation_id = c.id
   order by created_at desc, id desc limit 1
 ) m on true
+-- Conversations quiet for 4 months drop out of the inbox. Nothing is deleted:
+-- a new message updates last_message_at and brings the chat back.
+where c.last_message_at > now() - interval '4 months'
 order by c.last_message_at desc, c.id desc
 limit :limit!::int offset :offset!::int;
 

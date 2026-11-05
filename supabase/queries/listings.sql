@@ -11,7 +11,9 @@ price_jpy::double precision as price_jpy, image_urls, location, status,
 created_at, updated_at, private.author_name(author_id) as author_name,
 (author_id = (select private.current_profile_id())) as is_mine
 from public.listings
+where status = 'active'
 order by created_at desc, listings.id limit :limit!::int offset :offset!::int;
+
 
 /* @name SetListingStatus */
 -- Only the author can end their own active listing.
@@ -20,3 +22,12 @@ where public_id = :id!::uuid
   and author_id = (select private.current_profile_id())
   and status = 'active'
 returning public_id as id, status;
+
+/* @name GetMySoldListings */
+-- The caller's successful listings, newest first, for their profile.
+select public_id as id, category, title,
+price_jpy::double precision as price_jpy, image_urls, ended_at
+from public.listings
+where author_id = (select private.current_profile_id()) and status = 'sold'
+order by ended_at desc nulls last, id desc
+limit :limit!::int offset :offset!::int;

@@ -74,7 +74,7 @@ export interface IGetInboxQuery {
   result: IGetInboxResult;
 }
 
-const getInboxIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":800,"b":806}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":820,"b":827}]}],"statement":"-- RLS limits rows to conversations you are part of.\nselect c.public_id as id,\n  l.public_id as listing, l.title as listing_title, l.category, l.status as listing_status,\n  private.author_name(case when c.buyer_id = (select private.current_profile_id())\n    then c.seller_id else c.buyer_id end) as other_name,\n  (c.seller_id = (select private.current_profile_id())) as is_seller,\n  m.body as last_message, m.created_at as last_message_at,\n  (m.sender_id = (select private.current_profile_id())) as last_from_me\nfrom public.conversations c\njoin public.listings l on l.id = c.listing_id\nleft join lateral (\n  select body, created_at, sender_id from public.messages\n  where conversation_id = c.id\n  order by created_at desc, id desc limit 1\n) m on true\norder by c.last_message_at desc, c.id desc\nlimit :limit!::int offset :offset!::int"};
+const getInboxIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":1000,"b":1006}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":1020,"b":1027}]}],"statement":"-- RLS limits rows to conversations you are part of.\nselect c.public_id as id,\n  l.public_id as listing, l.title as listing_title, l.category, l.status as listing_status,\n  private.author_name(case when c.buyer_id = (select private.current_profile_id())\n    then c.seller_id else c.buyer_id end) as other_name,\n  (c.seller_id = (select private.current_profile_id())) as is_seller,\n  m.body as last_message, m.created_at as last_message_at,\n  (m.sender_id = (select private.current_profile_id())) as last_from_me\nfrom public.conversations c\njoin public.listings l on l.id = c.listing_id\nleft join lateral (\n  select body, created_at, sender_id from public.messages\n  where conversation_id = c.id\n  order by created_at desc, id desc limit 1\n) m on true\n-- Conversations quiet for 4 months drop out of the inbox. Nothing is deleted:\n-- a new message updates last_message_at and brings the chat back.\nwhere c.last_message_at > now() - interval '4 months'\norder by c.last_message_at desc, c.id desc\nlimit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -94,6 +94,9 @@ const getInboxIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{
  *   where conversation_id = c.id
  *   order by created_at desc, id desc limit 1
  * ) m on true
+ * -- Conversations quiet for 4 months drop out of the inbox. Nothing is deleted:
+ * -- a new message updates last_message_at and brings the chat back.
+ * where c.last_message_at > now() - interval '4 months'
  * order by c.last_message_at desc, c.id desc
  * limit :limit!::int offset :offset!::int
  * ```

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { apiRequest } from '../lib/api'
 import ProfileEditor from './ProfileEditor'
 import ProfilePhoto from './ProfilePhoto'
+import SoldHistory from './SoldHistory'
 
 const roles = { student: 'Student', club_leader: 'Club leader', admin: 'Admin' }
 
@@ -106,6 +107,7 @@ export default function Profile() {
                 <button className="btn-primary mt-8" onClick={signOut}>Sign out →</button>
               </section>
               <ProfileEditor profile={profile} onSaved={setProfile} />
+              <SoldHistory />
             </div>
           )}
       </main>

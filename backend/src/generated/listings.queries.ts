@@ -80,7 +80,7 @@ export interface IGetListingsQuery {
   result: IGetListingsResult;
 }
 
-const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":325,"b":331}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":345,"b":352}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name,\n(author_id = (select private.current_profile_id())) as is_mine\nfrom public.listings\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
+const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":349,"b":355}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":369,"b":376}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name,\n(author_id = (select private.current_profile_id())) as is_mine\nfrom public.listings\nwhere status = 'active'\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -90,6 +90,7 @@ const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params"
  * created_at, updated_at, private.author_name(author_id) as author_name,
  * (author_id = (select private.current_profile_id())) as is_mine
  * from public.listings
+ * where status = 'active'
  * order by created_at desc, listings.id limit :limit!::int offset :offset!::int
  * ```
  */
@@ -128,5 +129,44 @@ const setListingStatusIR: any = {"usedParamSet":{"status":true,"id":true},"param
  * ```
  */
 export const setListingStatus = new PreparedQuery<ISetListingStatusParams,ISetListingStatusResult>(setListingStatusIR);
+
+
+/** 'GetMySoldListings' parameters type */
+export interface IGetMySoldListingsParams {
+  limit: number;
+  offset: number;
+}
+
+/** 'GetMySoldListings' return type */
+export interface IGetMySoldListingsResult {
+  category: string;
+  ended_at: Date | null;
+  id: string;
+  image_urls: stringArray;
+  price_jpy: number | null;
+  title: string;
+}
+
+/** 'GetMySoldListings' query type */
+export interface IGetMySoldListingsQuery {
+  params: IGetMySoldListingsParams;
+  result: IGetMySoldListingsResult;
+}
+
+const getMySoldListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":320,"b":326}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":340,"b":347}]}],"statement":"-- The caller's successful listings, newest first, for their profile.\nselect public_id as id, category, title,\nprice_jpy::double precision as price_jpy, image_urls, ended_at\nfrom public.listings\nwhere author_id = (select private.current_profile_id()) and status = 'sold'\norder by ended_at desc nulls last, id desc\nlimit :limit!::int offset :offset!::int"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- The caller's successful listings, newest first, for their profile.
+ * select public_id as id, category, title,
+ * price_jpy::double precision as price_jpy, image_urls, ended_at
+ * from public.listings
+ * where author_id = (select private.current_profile_id()) and status = 'sold'
+ * order by ended_at desc nulls last, id desc
+ * limit :limit!::int offset :offset!::int
+ * ```
+ */
+export const getMySoldListings = new PreparedQuery<IGetMySoldListingsParams,IGetMySoldListingsResult>(getMySoldListingsIR);
 
 
