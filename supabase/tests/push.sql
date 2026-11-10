@@ -90,8 +90,7 @@ do $$
 begin
   assert (select count(*) = 1 and bool_and(endpoint like '%/laptop' and last_success_at is not null)
     from public.push_subscriptions), 'Dead device removed, working device kept';
-  assert (select min(push_status) = 'sent' and min(email_status) = 'pending'
-    from public.notifications), 'Push and email are tracked separately';
+  assert (select min(push_status) = 'sent' from public.notifications), 'Push outcome must be recorded';
   assert (select count(*) = 0 from private.claim_message_push(
     (select public_id from test_messages where n = 1))), 'Recipient must not claim the sender''s push';
 end;

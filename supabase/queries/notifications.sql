@@ -31,10 +31,3 @@ where c.id = n.conversation_id
   and c.public_id = :conversationId!::uuid
   and n.read_at is null
 returning n.public_id as id;
-
-/* @name ClaimMessageEmail */
--- Zero rows means no email is due (the conversation already had an unread notification).
-select * from private.claim_message_email(:messageId!::uuid);
-
-/* @name FinishNotificationEmail */
-select private.finish_notification_email(:notificationId!::uuid, :outcome!::text) as finished;

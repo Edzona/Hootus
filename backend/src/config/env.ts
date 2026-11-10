@@ -14,10 +14,7 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:5173')
     .transform(value => value.split(',').map(origin => origin.trim()))
     .pipe(z.array(z.url()).min(1)),
-  // Notification email. Local: smtp://127.0.0.1:54325 (Mailpit). Unset disables email.
-  SMTP_URL: z.preprocess(value => value === '' ? undefined : value, z.url().optional()),
-  MAIL_FROM: z.string().min(1).default('Hootus <no-reply@hootus.local>'),
-  // Where "open Hootus" links in emails point. Update when the real inbox route exists.
+  // Where clicking a notification opens Hootus. Update when the real inbox route exists.
   NOTIFICATION_LINK_URL: z.url().default('http://localhost:5173/#/beta/listings'),
   // Browser push. Generate once with `npx web-push generate-vapid-keys`.
   // Leave all three empty to disable push. The private key is a secret.

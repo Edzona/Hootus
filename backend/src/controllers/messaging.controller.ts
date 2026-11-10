@@ -5,7 +5,6 @@ import * as q from '../generated/messaging.queries.js';
 import { markConversationNotificationsRead } from '../generated/notifications.queries.js';
 import { assertAuthenticated } from '../helpers/auth.js';
 import { HttpError } from '../helpers/errors.js';
-import { notifyMessageByEmail } from '../helpers/mailer.js';
 import { notifyMessageByPush } from '../helpers/push.js';
 import { pageSchema } from '../helpers/validation.js';
 import { ErrorCode } from '../types/errorCode.js';
@@ -104,10 +103,7 @@ export const sendMessage: RequestHandler = async (req, res) => {
   if (!message) throw conversationNotFound();
   // After commit. Awaited because serverless may stop work left running after
   // the response; it never throws, so the message still counts as sent.
-  // Email and push run side by side; both never throw.
-  await Promise.all([
-    notifyMessageByEmail(req.db, message.id),
-    notifyMessageByPush(req.db, message.id),
-  ]);
+  // Never throws: a failed push must not fail the send.
+  await notifyMessageByPush(req.db, message.id);
   res.status(201).json({ data: { id: message.id, createdAt: message.created_at } });
 };

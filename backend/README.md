@@ -319,30 +319,15 @@ TypeScript is pinned to 5.9 because PgTyped CLI currently declares support throu
 
 ## Notifications
 
-Apply `20261030000000_notifications.sql`. A trigger on `messages` creates a
+Apply the notification migrations in order. A trigger on `messages` creates a
 notification for the recipient. While a conversation's notification is unread,
 new messages increase its `count` instead of adding rows. Loading a
 conversation's newest messages marks its notification read.
 
-Email is sent only when a notification row is created, so a burst of messages
-sends one email until the recipient opens the conversation. The email names the
-sender and listing but never includes the message body. `sendMessage` awaits
-delivery after its transaction commits (serverless may stop work left running
-after the response); email errors are logged and never fail the send.
-
-The recipient's address is private under profiles RLS. Only
-`private.claim_message_email` reads it, for the message's own sender, once.
-`notifications.email_status` records `sent`, `failed` or `skipped` (no
-`SMTP_URL`), which gives delivery reliability for the pilot:
-
-```sql
-select email_status, count(*) from public.notifications group by 1;
-```
-
-Locally, `smtp_port = 54325` under `[local_smtp]` in `supabase/config.toml`
-exposes Mailpit's SMTP port; restart Supabase after changing it. With
-`SMTP_URL=smtp://127.0.0.1:54325`, emails appear in the same Mailpit inbox as
-sign-in codes. In production, set `SMTP_URL` to an email provider's SMTP URL.
+Notifications are delivered by browser push only (below); new messages are not
+emailed. `20261102000000_remove_message_email.sql` removed the earlier email
+delivery. Supabase Auth still emails sign-in codes, which appear in local
+Mailpit as before.
 
 Run `supabase/tests/notifications.sql` like `access_control.sql`.
 
@@ -351,8 +336,8 @@ Run `supabase/tests/notifications.sql` like `access_control.sql`.
 Apply `20261101000000_push_subscriptions.sql`. Each browser that turns on
 notifications saves one `push_subscriptions` row: an endpoint on the browser
 vendor's push service plus the browser's encryption keys. A message's
-notification is pushed to every device of the recipient once, at the same moment
-the email is claimed, and tracked in `notifications.push_status`. Devices the
+notification is pushed to every device of the recipient once, when the
+notification is created, and tracked in `notifications.push_status`. Devices the
 push service reports as gone (404/410) are deleted.
 
 Generate server keys once and put them in `backend/.env` with

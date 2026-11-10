@@ -29,7 +29,7 @@ const oneLine = (value: string, max: number) => {
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 };
 
-// Shown on the lock screen and desktop: no message body, like the email.
+// Shown on the lock screen and desktop: never the message body.
 // tag groups notifications per conversation, so a newer one replaces the older.
 export function messagePush(input: MessagePushInput) {
   const sender = oneLine(input.senderName || 'A Hootus member', 60);
