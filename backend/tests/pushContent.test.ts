@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isAllowedPushEndpoint, messagePush } from '../src/helpers/pushContent.js';
+import { isAllowedPushEndpoint, listingPush, messagePush } from '../src/helpers/pushContent.js';
 
 test('push endpoints are limited to browser push services', () => {
   for (const url of [
@@ -40,4 +40,21 @@ test('push payload falls back when names are missing and stays small', () => {
   });
   assert.ok(payload.length < 1000); // push services cap payloads at about 4 KB
   assert.equal(JSON.parse(payload).title, 'A Hootus member sent you a message');
+});
+
+test('listing push names the listing, category, price and seller', () => {
+  const payload = JSON.parse(listingPush({
+    authorName: 'Sam', listingTitle: 'Rice cooker', category: 'sales', priceJpy: 2500, link: 'http://localhost:5173/',
+  }));
+  assert.equal(payload.title, 'New on Hootus: Rice cooker');
+  assert.equal(payload.body, 'For sale · ¥2,500 · by Sam');
+  assert.equal(payload.tag, 'hootus-new-listings');
+});
+
+test('listing push leaves out a missing price and stays small', () => {
+  const payload = listingPush({
+    authorName: null, listingTitle: 'x'.repeat(5000), category: 'gigs', priceJpy: null, link: 'http://localhost:5173/',
+  });
+  assert.ok(payload.length < 1000);
+  assert.equal(JSON.parse(payload).body, 'Gig · by a Hootus member');
 });

@@ -17,3 +17,11 @@ select * from private.claim_message_push(:messageId!::uuid);
 /* @name FinishNotificationPush */
 select private.finish_notification_push(:notificationId!::uuid, :outcome!::text,
   :okEndpoints!::text[], :deadEndpoints!::text[]) as finished;
+
+/* @name ClaimListingPush */
+-- One row per recipient device; zero rows when nobody is due a push.
+select * from private.claim_listing_push(:listingId!::uuid);
+
+/* @name FinishListingPush */
+select private.finish_listing_push(:listingId!::uuid, :pushEnabled!::boolean,
+  :okEndpoints!::text[], :deadEndpoints!::text[]) as finished;

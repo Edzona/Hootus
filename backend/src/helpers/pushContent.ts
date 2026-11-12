@@ -41,3 +41,29 @@ export function messagePush(input: MessagePushInput) {
     tag: input.conversationId ? `conversation:${input.conversationId}` : 'hootus-message',
   });
 }
+
+const categoryLabel: Record<string, string> = { sales: 'For sale', housing: 'Housing', gigs: 'Gig' };
+
+export interface ListingPushInput {
+  authorName: string | null;
+  listingTitle: string | null;
+  category: string | null;
+  priceJpy: number | null;
+  link: string;
+}
+
+// One tag for all new-listing pushes, so a newer one replaces the older.
+export function listingPush(input: ListingPushInput) {
+  const title = input.listingTitle ? oneLine(input.listingTitle, 80) : 'A new listing';
+  const parts = [
+    input.category ? categoryLabel[input.category] ?? null : null,
+    input.priceJpy !== null ? `¥${Math.round(input.priceJpy).toLocaleString('en-US')}` : null,
+    `by ${oneLine(input.authorName || 'a Hootus member', 60)}`,
+  ].filter(Boolean);
+  return JSON.stringify({
+    title: `New on Hootus: ${title}`,
+    body: parts.join(' · '),
+    url: input.link,
+    tag: 'hootus-new-listings',
+  });
+}

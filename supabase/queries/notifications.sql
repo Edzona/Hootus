@@ -2,10 +2,11 @@
 -- RLS limits rows to your own notifications. Newest activity first.
 select n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,
   private.author_name(n.actor_id) as actor_name,
-  c.public_id as conversation, l.title as listing_title
+  c.public_id as conversation, l.public_id as listing, l.title as listing_title
 from public.notifications n
 left join public.conversations c on c.id = n.conversation_id
-left join public.listings l on l.id = c.listing_id
+-- Message notifications: the conversation's listing. Listing notifications: the newest listing.
+left join public.listings l on l.id = coalesce(n.listing_id, c.listing_id)
 order by n.updated_at desc, n.id desc
 limit :limit!::int offset :offset!::int;
 
@@ -31,3 +32,9 @@ where c.id = n.conversation_id
   and c.public_id = :conversationId!::uuid
   and n.read_at is null
 returning n.public_id as id;
+
+/* @name MarkListingNotificationsRead */
+-- Viewing the listings page clears your "new listings" notification.
+update public.notifications set read_at = now()
+where kind = 'listing' and read_at is null
+returning public_id as id;

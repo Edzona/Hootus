@@ -15,6 +15,7 @@ export interface IGetNotificationsResult {
   event_count: number;
   id: string;
   kind: string;
+  listing: string;
   listing_title: string;
   read_at: Date | null;
   updated_at: Date;
@@ -26,7 +27,7 @@ export interface IGetNotificationsQuery {
   result: IGetNotificationsResult;
 }
 
-const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":446,"b":452}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":466,"b":473}]}],"statement":"-- RLS limits rows to your own notifications. Newest activity first.\nselect n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,\n  private.author_name(n.actor_id) as actor_name,\n  c.public_id as conversation, l.title as listing_title\nfrom public.notifications n\nleft join public.conversations c on c.id = n.conversation_id\nleft join public.listings l on l.id = c.listing_id\norder by n.updated_at desc, n.id desc\nlimit :limit!::int offset :offset!::int"};
+const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":591,"b":597}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":611,"b":618}]}],"statement":"-- RLS limits rows to your own notifications. Newest activity first.\nselect n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,\n  private.author_name(n.actor_id) as actor_name,\n  c.public_id as conversation, l.public_id as listing, l.title as listing_title\nfrom public.notifications n\nleft join public.conversations c on c.id = n.conversation_id\n-- Message notifications: the conversation's listing. Listing notifications: the newest listing.\nleft join public.listings l on l.id = coalesce(n.listing_id, c.listing_id)\norder by n.updated_at desc, n.id desc\nlimit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -34,10 +35,11 @@ const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"pa
  * -- RLS limits rows to your own notifications. Newest activity first.
  * select n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,
  *   private.author_name(n.actor_id) as actor_name,
- *   c.public_id as conversation, l.title as listing_title
+ *   c.public_id as conversation, l.public_id as listing, l.title as listing_title
  * from public.notifications n
  * left join public.conversations c on c.id = n.conversation_id
- * left join public.listings l on l.id = c.listing_id
+ * -- Message notifications: the conversation's listing. Listing notifications: the newest listing.
+ * left join public.listings l on l.id = coalesce(n.listing_id, c.listing_id)
  * order by n.updated_at desc, n.id desc
  * limit :limit!::int offset :offset!::int
  * ```
@@ -158,5 +160,33 @@ const markConversationNotificationsReadIR: any = {"usedParamSet":{"conversationI
  * ```
  */
 export const markConversationNotificationsRead = new PreparedQuery<IMarkConversationNotificationsReadParams,IMarkConversationNotificationsReadResult>(markConversationNotificationsReadIR);
+
+
+/** 'MarkListingNotificationsRead' parameters type */
+export type IMarkListingNotificationsReadParams = void;
+
+/** 'MarkListingNotificationsRead' return type */
+export interface IMarkListingNotificationsReadResult {
+  id: string;
+}
+
+/** 'MarkListingNotificationsRead' query type */
+export interface IMarkListingNotificationsReadQuery {
+  params: IMarkListingNotificationsReadParams;
+  result: IMarkListingNotificationsReadResult;
+}
+
+const markListingNotificationsReadIR: any = {"usedParamSet":{},"params":[],"statement":"-- Viewing the listings page clears your \"new listings\" notification.\nupdate public.notifications set read_at = now()\nwhere kind = 'listing' and read_at is null\nreturning public_id as id"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Viewing the listings page clears your "new listings" notification.
+ * update public.notifications set read_at = now()
+ * where kind = 'listing' and read_at is null
+ * returning public_id as id
+ * ```
+ */
+export const markListingNotificationsRead = new PreparedQuery<IMarkListingNotificationsReadParams,IMarkListingNotificationsReadResult>(markListingNotificationsReadIR);
 
 

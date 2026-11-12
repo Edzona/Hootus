@@ -331,6 +331,22 @@ Mailpit as before.
 
 Run `supabase/tests/notifications.sql` like `access_control.sql`.
 
+### New-listing notifications
+
+`20261112120000_listing_notifications.sql` notifies every member who has push
+turned on (at least one saved device) when someone posts an active listing,
+except the seller. Each member has at most one unread `listing` notification:
+further listings raise its `count` and point it at the newest listing, and push
+is sent only when the row is created, so a burst of listings buzzes once.
+Loading the first page of `GET /api/listings` marks it read and re-arms it.
+
+`createListing` awaits delivery after its transaction commits, sending to
+devices in batches of 20; failures are logged and never fail the post. Fan-out
+happens inside the seller's request, which is fine at pilot size but should move
+to a background job if the number of members with push grows into the hundreds.
+
+Run `supabase/tests/listing_notifications.sql` like `access_control.sql`.
+
 ### Browser push
 
 Apply `20261101000000_push_subscriptions.sql`. Each browser that turns on

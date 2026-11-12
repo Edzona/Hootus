@@ -21,6 +21,7 @@ export const getNotifications: RequestHandler = async (req, res) => {
     kind: n.kind,
     actorName: n.actor_name ?? 'Hootus member',
     conversation: n.conversation ?? null,
+    listing: n.listing ?? null,
     listingTitle: n.listing_title ?? null,
     // Messages grouped into this notification while it was unread.
     count: n.event_count,

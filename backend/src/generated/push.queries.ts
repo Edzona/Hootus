@@ -152,3 +152,69 @@ const finishNotificationPushIR: any = {"usedParamSet":{"notificationId":true,"ou
 export const finishNotificationPush = new PreparedQuery<IFinishNotificationPushParams,IFinishNotificationPushResult>(finishNotificationPushIR);
 
 
+/** 'ClaimListingPush' parameters type */
+export interface IClaimListingPushParams {
+  listingId: string;
+}
+
+/** 'ClaimListingPush' return type */
+export interface IClaimListingPushResult {
+  auth: string | null;
+  author_name: string | null;
+  category: string | null;
+  endpoint: string | null;
+  listing_title: string | null;
+  notification_id: string | null;
+  p256dh: string | null;
+  price_jpy: number | null;
+}
+
+/** 'ClaimListingPush' query type */
+export interface IClaimListingPushQuery {
+  params: IClaimListingPushParams;
+  result: IClaimListingPushResult;
+}
+
+const claimListingPushIR: any = {"usedParamSet":{"listingId":true},"params":[{"name":"listingId","required":true,"transform":{"type":"scalar"},"locs":[{"a":111,"b":121}]}],"statement":"-- One row per recipient device; zero rows when nobody is due a push.\nselect * from private.claim_listing_push(:listingId!::uuid)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One row per recipient device; zero rows when nobody is due a push.
+ * select * from private.claim_listing_push(:listingId!::uuid)
+ * ```
+ */
+export const claimListingPush = new PreparedQuery<IClaimListingPushParams,IClaimListingPushResult>(claimListingPushIR);
+
+
+/** 'FinishListingPush' parameters type */
+export interface IFinishListingPushParams {
+  deadEndpoints: stringArray;
+  listingId: string;
+  okEndpoints: stringArray;
+  pushEnabled: boolean;
+}
+
+/** 'FinishListingPush' return type */
+export interface IFinishListingPushResult {
+  finished: number | null;
+}
+
+/** 'FinishListingPush' query type */
+export interface IFinishListingPushQuery {
+  params: IFinishListingPushParams;
+  result: IFinishListingPushResult;
+}
+
+const finishListingPushIR: any = {"usedParamSet":{"listingId":true,"pushEnabled":true,"okEndpoints":true,"deadEndpoints":true},"params":[{"name":"listingId","required":true,"transform":{"type":"scalar"},"locs":[{"a":35,"b":45}]},{"name":"pushEnabled","required":true,"transform":{"type":"scalar"},"locs":[{"a":54,"b":66}]},{"name":"okEndpoints","required":true,"transform":{"type":"scalar"},"locs":[{"a":80,"b":92}]},{"name":"deadEndpoints","required":true,"transform":{"type":"scalar"},"locs":[{"a":103,"b":117}]}],"statement":"select private.finish_listing_push(:listingId!::uuid, :pushEnabled!::boolean,\n  :okEndpoints!::text[], :deadEndpoints!::text[]) as finished"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select private.finish_listing_push(:listingId!::uuid, :pushEnabled!::boolean,
+ *   :okEndpoints!::text[], :deadEndpoints!::text[]) as finished
+ * ```
+ */
+export const finishListingPush = new PreparedQuery<IFinishListingPushParams,IFinishListingPushResult>(finishListingPushIR);
+
+

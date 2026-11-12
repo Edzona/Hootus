@@ -8,6 +8,8 @@ import { withAuthor } from "../helpers/authors.js";
 import { pageSchema } from "../helpers/validation.js";
 import type { RequestHandler } from "express";
 import { z } from "zod";
+import { markListingNotificationsRead } from "../generated/notifications.queries.js";
+import { notifyListingByPush } from "../helpers/push.js";
 import { assertAuthenticated } from "../helpers/auth.js";
 import { listingCategorySchema, ListingStatus } from "../types/domain.js";
 import { HttpError } from "../helpers/errors.js";
@@ -53,13 +55,20 @@ export const createListing: RequestHandler = async (req, res) => {
   const [data] = await req.db((tx) =>
     insertPost.run({ ...body, authorId: req.user.internalId }, tx),
   );
+  // After commit. Awaited because serverless may stop work left running after
+  // the response; it never throws, so the listing still counts as posted.
+  if (data?.id) await notifyListingByPush(req.db, data.id);
   res.status(201).json({ data: withAuthor(data) });
 };
 
 export const getListings: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const { limit, offset } = res.locals.query as z.infer<typeof pageSchema>;
-  const data = await req.db((tx) => selectPosts.run({ limit, offset }, tx));
+  const data = await req.db(async (tx) => {
+    // Viewing the first page clears your "new listings" notification (and re-arms it).
+    if (offset === 0) await markListingNotificationsRead.run(undefined, tx);
+    return selectPosts.run({ limit, offset }, tx);
+  });
   res.json({ data: data.map(withAuthor) });
 };
 
