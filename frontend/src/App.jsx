@@ -11,6 +11,7 @@ import FinalCta from './components/FinalCta'
 import Footer from './components/Footer'
 import AccountStatus from './components/AccountStatus'
 import Profile from './components/Profile'
+import Admin from './components/Admin'
 import Campus from './components/campus/Campus'
 import HubNav from './components/HubNav'
 import Marketplace from './components/Marketplace'
@@ -39,6 +40,7 @@ export default function App() {
   }, [])
 
   if (hash.startsWith('#/profile')) return <Profile />
+  if (hash.startsWith('#/admin')) return <Admin />
 
   if (hash.startsWith('#/marketplace')) return <><HubNav hash={hash} /><Marketplace /></>
   if (hash.startsWith('#/real-estate')) return <><HubNav hash={hash} /><RealEstate /></>

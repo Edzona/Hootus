@@ -103,6 +103,11 @@ export default function Profile() {
                   ))}
                 </dl>
                 <p className="mt-5 text-sm text-ink/60">Your email and student ID are private account details.</p>
+                {profile.role === 'admin' && (
+                  <a href="#/admin" className="mt-8 mr-4 inline-block border-2 border-ink bg-sun px-4 py-2 font-mono text-xs uppercase tracking-widest">
+                    Admin desk →
+                  </a>
+                )}
                 <button className="btn-primary mt-8" onClick={signOut}>Sign out →</button>
               </section>
               <ProfileEditor profile={profile} onSaved={setProfile} />

@@ -22,7 +22,7 @@ export default function RealEstate() {
           <p className="text-ink/60">No rooms posted right now.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
-            {listings.map((l, i) => (
+            {listings.map((l) => (
               <Flyer
                 key={l.id}
                 tag={l.label}

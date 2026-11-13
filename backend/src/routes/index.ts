@@ -4,8 +4,10 @@ import { listingsRoutes } from './listings.routes.js';
 import { feedRoutes } from './feed.routes.js';
 import { profileRoutes } from './profile.routes.js';
 import { authRoutes } from './auth.routes.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { campusRoutes } from './campus.routes.js';
+import { adminRoutes } from './admin.routes.js';
+import { UserRole } from '../types/domain.js';
 
 export const routes = Router();
 const protectedRoutes = Router();
@@ -20,4 +22,5 @@ protectedRoutes.use('/listings', listingsRoutes);
 protectedRoutes.use('/feed', feedRoutes);
 protectedRoutes.use('/profile', profileRoutes);
 protectedRoutes.use('/campus', campusRoutes);
+protectedRoutes.use('/admin', requireRole([UserRole.Admin]), adminRoutes);
 routes.use(protectedRoutes);
