@@ -37,7 +37,7 @@ export async function removeListingPhotos(paths) {
   try { await getSupabase().storage.from(BUCKET).remove(paths) } catch { /* leftover files are harmless */ }
 }
 
-// Uploads into listing-photos/<your Auth ID>/, the only folder Storage lets you write to.
+// Uploads under random names; Storage records you as the owner, which the API checks.
 // Returns public URLs to save with the listing, plus paths for cleanup.
 export async function uploadListingPhotos(files) {
   const supabase = getSupabase()
@@ -48,7 +48,7 @@ export async function uploadListingPhotos(files) {
   try {
     for (const file of files) {
       const blob = await compressPhoto(file)
-      const path = `${data.session.user.id}/${crypto.randomUUID()}.jpg`
+      const path = `${crypto.randomUUID()}.jpg`
       const { error } = await storage.upload(path, blob, { contentType: 'image/jpeg' })
       if (error) throw new Error('A photo could not be uploaded. Please try again.')
       paths.push(path)

@@ -78,7 +78,7 @@ export async function notifyMessageByPush(db: UserDatabase, messageId: string) {
     }
     await db(tx => q.finishNotificationPush.run({ notificationId, outcome, ...sent }, tx));
   } catch (error) {
-    logger.error('push bookkeeping failed: %s', error instanceof Error ? error.message : 'unknown');
+    logger.error('push bookkeeping failed: %s', error instanceof Error ? error.name : 'unknown');
   }
 }
 
@@ -101,6 +101,6 @@ export async function notifyListingByPush(db: UserDatabase, listingId: string) {
     }
     await db(tx => q.finishListingPush.run({ listingId, pushEnabled: enabled, ...sent }, tx));
   } catch (error) {
-    logger.error('listing push bookkeeping failed: %s', error instanceof Error ? error.message : 'unknown');
+    logger.error('listing push bookkeeping failed: %s', error instanceof Error ? error.name : 'unknown');
   }
 }

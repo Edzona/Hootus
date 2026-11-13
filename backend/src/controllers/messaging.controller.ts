@@ -82,7 +82,7 @@ export const getConversationMessages: RequestHandler = async (req, res) => {
     if (!conversation) throw conversationNotFound();
     const rows = await q.getConversationMessages.run(
       { conversationId, limit, before: before ?? null }, tx);
-    // Reading the conversation clears its notification (and re-arms the email).
+    // Reading the conversation clears its notification (and re-arms its push).
     if (!before) await markConversationNotificationsRead.run({ conversationId }, tx);
     return {
       messages: rows.map(m => ({
@@ -103,7 +103,6 @@ export const sendMessage: RequestHandler = async (req, res) => {
   if (!message) throw conversationNotFound();
   // After commit. Awaited because serverless may stop work left running after
   // the response; it never throws, so the message still counts as sent.
-  // Never throws: a failed push must not fail the send.
   await notifyMessageByPush(req.db, message.id);
   res.status(201).json({ data: { id: message.id, createdAt: message.created_at } });
 };

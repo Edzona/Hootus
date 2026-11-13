@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { ListingCategory, UserRole } from '../src/types/domain.js';
 import { listingSchema } from '../src/controllers/listings.controller.js';
+import { env } from '../src/config/env.js';
 import { createTestApi } from './helpers/api.js';
 import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
 
@@ -25,10 +27,26 @@ test('listing API validation and persistence', integrationOptions, async t => {
       ]) assert.equal((await call('/api/listings', users[UserRole.Student].token, body)).status, 400);
       assert.equal((await call('/api/listings?limit=101', users[UserRole.Student].token)).status, 400);
     });
+    const bucket = `${env.SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/listing-photos/`;
+    const [photo, othersPhoto] = [randomUUID(), randomUUID()].map(id => `${id}.jpg`);
+    await owner`insert into storage.objects (bucket_id, name, owner_id) values
+      ('listing-photos', ${photo}, ${users[UserRole.Student].id}),
+      ('listing-photos', ${othersPhoto}, ${users[UserRole.Admin].id})`;
+
+    await t.test('listing photos must be the caller\'s own uploads', async () => {
+      for (const url of ['https://example.com/desk.jpg', `${bucket}${othersPhoto}`, `${bucket}${randomUUID()}.jpg`,
+        `${bucket}${users[UserRole.Student].id}/${photo}`]) {
+        const result = await call('/api/listings', users[UserRole.Student].token, {
+          category: ListingCategory.Sales, title: 'Desk', image_urls: [url],
+        });
+        assert.equal(result.status, 400, url);
+      }
+    });
+
     await t.test('student creates and reads a persisted listing', async () => {
       const result = await call('/api/listings', users[UserRole.Student].token, {
         category: ListingCategory.Sales, title: 'Integration test desk', price_jpy: 1500,
-        image_urls: ['https://example.com/desk.jpg'],
+        image_urls: [`${bucket}${photo}`],
       });
       assert.equal(result.status, 201, JSON.stringify(result.body));
       assert.deepEqual(result.body.data.author, { name: 'Test student' });
@@ -36,7 +54,7 @@ test('listing API validation and persistence', integrationOptions, async t => {
       const [stored] = await owner`select price_jpy from public.listings where public_id = ${result.body.data.id}`;
       assert.equal(Number(stored.price_jpy), 1500);
       assert.equal(result.body.data.price_jpy, 1500);
-      assert.deepEqual(result.body.data.image_urls, ['https://example.com/desk.jpg']);
+      assert.deepEqual(result.body.data.image_urls, [`${bucket}${photo}`]);
       const otherReader = await call('/api/listings?limit=100', users[UserRole.ClubLeader].token);
       assert.equal(otherReader.status, 200);
       const listing = otherReader.body.data.find((row: { id: string }) => row.id === result.body.data.id);
@@ -48,6 +66,14 @@ test('listing API validation and persistence', integrationOptions, async t => {
       assert(!('public_id' in listing));
     });
   } finally {
-    await fixture.cleanup();
+    try {
+      await owner.begin(async tx => {
+        await tx`select set_config('storage.allow_delete_query', 'true', true)`;
+        await tx`delete from storage.objects where bucket_id = 'listing-photos'
+          and owner_id = any(${[users[UserRole.Student].id, users[UserRole.Admin].id]})`;
+      });
+    } finally {
+      await fixture.cleanup();
+    }
   }
 });

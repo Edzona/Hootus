@@ -5,6 +5,9 @@ returning public_id as id, category, title, description,
 price_jpy::double precision as price_jpy, image_urls, location, status,
 created_at, updated_at, private.author_name(author_id) as author_name;
 
+/* @name OwnsListingPhotos */
+select private.owns_listing_photos(:names!::text[]) as owned;
+
 /* @name GetListings */
 select public_id as id, category, title, description,
 price_jpy::double precision as price_jpy, image_urls, location, status,

@@ -105,11 +105,18 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | GET | `/api/profile/me` | Confirmed Temple user; own profile |
 | PATCH | `/api/profile/me` | Confirmed Temple user; own bio (max 500) and photo URL from their own `avatars` folder |
 | GET | `/api/listings` | Confirmed Temple user |
-| POST | `/api/listings` | Confirmed Temple user |
+| POST | `/api/listings` | Confirmed Temple user; `image_urls` must be the caller's own `listing-photos` uploads |
+| GET | `/api/listings/mine/sold` | Confirmed Temple user; own sold listings, newest first |
+| PATCH | `/api/listings/:id/status` | Listing author; active listing to `{ status: "sold" \| "closed" }` |
 | GET | `/api/feed` | Confirmed Temple user |
 | POST | `/api/feed` | Club leader/admin; perks require admin |
 | GET | `/api/campus` | Confirmed Temple user; clubs, events, posts, own saved posts, listing suggestions |
 | PUT | `/api/campus/actions/:action/:id` | Confirmed Temple user; idempotent follow/like/save/rsvp, `{ active: boolean }` |
+| POST | `/api/messaging/listings/:listingId/conversations` | Confirmed Temple user; another member's active listing; returns `{ id }` |
+| GET | `/api/messaging/conversations` | Confirmed Temple user; own conversations, newest first |
+| GET | `/api/messaging/conversations/:conversationId` | Conversation participant; chat header |
+| GET | `/api/messaging/conversations/:conversationId/messages` | Conversation participant; `?limit=30&before=<timestamp>` |
+| POST | `/api/messaging/conversations/:conversationId/messages` | Conversation participant; `{ body }` (max 2000) |
 | GET | `/api/notifications` | Confirmed Temple user; own notifications, newest first, with `meta.unread` |
 | GET | `/api/notifications/unread-count` | Confirmed Temple user; `{ unread }` |
 | POST | `/api/notifications/:notificationId/read` | Confirmed Temple user; own notification, 204 |
@@ -286,8 +293,8 @@ Vercel cannot connect to the Supabase instance on your laptop's `127.0.0.1`.
 Raw Realtime table subscriptions are deliberately unavailable to browser roles.
 The messages table remains in the publication, but its table grants are revoked.
 Messaging needs an authorized API and a separate minimal notification contract;
-do not re-enable table access to make raw subscriptions work. This scaffold does
-not include marketplace UI screens, uploads, message endpoints, or a deployment.
+do not re-enable table access to make raw subscriptions work. Listing messages use the
+authorized `/api/messaging` endpoints above, polled by the client.
 
 Email-confirmation setup is deferred for now. Before production, enable Confirm
 Email in hosted Supabase Auth. Local confirmation can be tested with the local
@@ -325,7 +332,7 @@ new messages increase its `count` instead of adding rows. Loading a
 conversation's newest messages marks its notification read.
 
 Notifications are delivered by browser push only (below); new messages are not
-emailed. `20261102000000_remove_message_email.sql` removed the earlier email
+emailed. `20261110170000_remove_message_email.sql` removed the earlier email
 delivery. Supabase Auth still emails sign-in codes, which appear in local
 Mailpit as before.
 

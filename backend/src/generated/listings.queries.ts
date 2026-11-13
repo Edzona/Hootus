@@ -52,6 +52,33 @@ const createListingIR: any = {"usedParamSet":{"authorId":true,"category":true,"t
 export const createListing = new PreparedQuery<ICreateListingParams,ICreateListingResult>(createListingIR);
 
 
+/** 'OwnsListingPhotos' parameters type */
+export interface IOwnsListingPhotosParams {
+  names: stringArray;
+}
+
+/** 'OwnsListingPhotos' return type */
+export interface IOwnsListingPhotosResult {
+  owned: boolean | null;
+}
+
+/** 'OwnsListingPhotos' query type */
+export interface IOwnsListingPhotosQuery {
+  params: IOwnsListingPhotosParams;
+  result: IOwnsListingPhotosResult;
+}
+
+const ownsListingPhotosIR: any = {"usedParamSet":{"names":true},"params":[{"name":"names","required":true,"transform":{"type":"scalar"},"locs":[{"a":35,"b":41}]}],"statement":"select private.owns_listing_photos(:names!::text[]) as owned"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select private.owns_listing_photos(:names!::text[]) as owned
+ * ```
+ */
+export const ownsListingPhotos = new PreparedQuery<IOwnsListingPhotosParams,IOwnsListingPhotosResult>(ownsListingPhotosIR);
+
+
 /** 'GetListings' parameters type */
 export interface IGetListingsParams {
   limit: number;
