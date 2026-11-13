@@ -14,6 +14,12 @@ export enum ListingCategory {
   Gigs = 'gigs',
 }
 
+export enum ListingStatus {
+  Active = 'active',
+  Sold = 'sold',
+  Closed = 'closed',
+}
+
 export enum FeedPostKind {
   ClubEvent = 'club_event',
   Perk = 'perk',
