@@ -5,11 +5,15 @@ import { apiRequest } from '../lib/api'
 const roles = { student: 'Student', club_leader: 'Club leader', admin: 'Admin' }
 const statuses = ['active', 'sold', 'closed']
 const tabs = [['users', 'Users'], ['listings', 'Listings'], ['feed', 'Feed posts']]
+const sources = { users: '/admin/users', listings: '/listings', feed: '/feed' }
+const PAGE = 100
+const fetchPage = (list, offset, signal) => apiRequest(`${sources[list]}?limit=${PAGE}&offset=${offset}`, { signal })
 const formatDate = value => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
 export default function Admin() {
   const [state, setState] = useState({ loading: true, error: '', allowed: false })
   const [data, setData] = useState({ users: [], listings: [], feed: [] })
+  const [more, setMore] = useState({ users: false, listings: false, feed: false })
   const [tab, setTab] = useState('users')
   const [busy, setBusy] = useState(null)
   const [actionError, setActionError] = useState('')
@@ -22,12 +26,9 @@ export default function Admin() {
     apiRequest('/profile/me', { signal })
       .then(async profile => {
         if (profile.role !== 'admin') return setState({ loading: false, error: '', allowed: false })
-        const [users, listings, feed] = await Promise.all([
-          apiRequest('/admin/users?limit=100', { signal }),
-          apiRequest('/listings?limit=100', { signal }),
-          apiRequest('/feed?limit=100', { signal }),
-        ])
+        const [users, listings, feed] = await Promise.all(tabs.map(([list]) => fetchPage(list, 0, signal)))
         setData({ users, listings, feed })
+        setMore({ users: users.length === PAGE, listings: listings.length === PAGE, feed: feed.length === PAGE })
         setState({ loading: false, error: '', allowed: true })
       })
       .catch(err => { if (!signal.aborted) setState({ loading: false, error: err.message, allowed: false }) })
@@ -45,6 +46,17 @@ export default function Admin() {
     } finally {
       setBusy(null)
     }
+  }
+
+  // Deleted rows are removed locally, so the loaded count is the next offset.
+  function loadMore(list) {
+    run(`more:${list}`, () => fetchPage(list, data[list].length), page => {
+      setData(current => {
+        const seen = new Set(current[list].map(row => row.id))
+        return { ...current, [list]: [...current[list], ...page.filter(row => !seen.has(row.id))] }
+      })
+      setMore(current => ({ ...current, [list]: page.length === PAGE }))
+    })
   }
 
   const replace = (list, item) => setData(current => ({ ...current, [list]: current[list].map(row => row.id === item.id ? item : row) }))
@@ -97,7 +109,7 @@ export default function Admin() {
                 {tabs.map(([id, label]) => (
                   <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
                     className={`border-2 border-ink px-4 py-2 font-mono text-xs uppercase tracking-widest ${tab === id ? 'bg-ink text-paper' : 'bg-white shadow-hard'}`}>
-                    {label} ({data[id].length})
+                    {label} ({data[id].length}{more[id] ? '+' : ''})
                   </button>
                 ))}
               </div>
@@ -138,6 +150,14 @@ export default function Admin() {
                     onSave={(changes, done) => saveFeedPost(post, changes, done)}
                     onDelete={() => deleteItem('feed', '/admin/feed', post)} />
                 )} />}
+                {more[tab] && (
+                  <div className="border-t-2 border-ink p-5 text-center">
+                    <button onClick={() => loadMore(tab)} disabled={busy === `more:${tab}`}
+                      className="border-2 border-ink bg-paper px-4 py-2 font-mono text-xs uppercase tracking-widest disabled:opacity-50">
+                      {busy === `more:${tab}` ? 'Loading…' : 'Load more'}
+                    </button>
+                  </div>
+                )}
               </section>
             </>
           )}
