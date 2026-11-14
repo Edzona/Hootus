@@ -32,6 +32,7 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
     })).body.data;
     const routes: [string, string, unknown?][] = [
       ['GET', '/api/admin/users'],
+      ['PATCH', `/api/admin/users/${users[UserRole.Student].publicId}`, { role: UserRole.Admin }],
       ['PATCH', `/api/admin/listings/${listing.id}`, { status: ListingStatus.Closed }],
       ['DELETE', `/api/admin/listings/${listing.id}`],
       ['PATCH', `/api/admin/feed/${post.id}`, { title: 'Hidden' }],
@@ -43,6 +44,8 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
         assert.equal((await call(path, undefined, body, {}, method)).status, 401, `${method} ${path}`);
         for (const token of nonAdmins) assert.equal((await call(path, token, body, {}, method)).status, 403, `${method} ${path}`);
       }
+      const [storedUser] = await owner`select role from public.profiles where public_id = ${users[UserRole.Student].publicId}`;
+      assert.equal(storedUser.role, UserRole.Student);
       const [stored] = await owner`select status from public.listings where public_id = ${listing.id}`;
       assert.equal(stored.status, ListingStatus.Active);
       const [storedPost] = await owner`select title from public.feed_posts where public_id = ${post.id}`;
@@ -60,6 +63,64 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert(!text.includes(users[UserRole.Student].email));
       assert(!text.includes(users[UserRole.Student].id));
       assert.equal((await call('/api/admin/users?limit=101', admin)).status, 400);
+    });
+
+    await t.test('admin changes another member\'s role but not their own', async () => {
+      const student = users[UserRole.Student];
+      const path = `/api/admin/users/${student.publicId}`;
+      assert.equal((await call(path, admin, { role: 'owner' }, {}, 'PATCH')).status, 400);
+      assert.equal((await call(path, admin, {}, {}, 'PATCH')).status, 400);
+      assert.equal((await call('/api/admin/users/1', admin, { role: UserRole.Student }, {}, 'PATCH')).status, 400);
+      assert.equal((await call(`/api/admin/users/${randomUUID()}`, admin, { role: UserRole.Student }, {}, 'PATCH')).status, 404);
+      const self = await call(`/api/admin/users/${users[UserRole.Admin].publicId}`, admin, { role: UserRole.Student }, {}, 'PATCH');
+      assert.equal(self.status, 409);
+      try {
+        const result = await call(path, admin, { role: UserRole.ClubLeader }, {}, 'PATCH');
+        assert.equal(result.status, 200, JSON.stringify(result.body));
+        assert.deepEqual(Object.keys(result.body.data).sort(), ['avatar_url', 'created_at', 'full_name', 'id', 'role']);
+        assert.equal(result.body.data.id, student.publicId);
+        assert.equal(result.body.data.role, UserRole.ClubLeader);
+        const [stored] = await owner`select role from public.profiles where public_id = ${student.publicId}`;
+        assert.equal(stored.role, UserRole.ClubLeader);
+      } finally {
+        await owner`update public.profiles set role = ${UserRole.Student} where public_id = ${student.publicId}`;
+      }
+      const [admins] = await owner`select role from public.profiles where public_id = ${users[UserRole.Admin].publicId}`;
+      assert.equal(admins.role, UserRole.Admin);
+    });
+
+    await t.test('two admins demoting each other leaves one admin, without a database error', async () => {
+      const [first, second] = [users[UserRole.Admin], users[UserRole.ClubLeader]];
+      await owner`update public.profiles set role = ${UserRole.Admin} where public_id = ${second.publicId}`;
+      try {
+        const results = await Promise.all([
+          call(`/api/admin/users/${second.publicId}`, first.token, { role: UserRole.Student }, {}, 'PATCH'),
+          call(`/api/admin/users/${first.publicId}`, second.token, { role: UserRole.Student }, {}, 'PATCH'),
+        ]);
+        assert.deepEqual(results.map(result => result.status).sort(), [200, 403], JSON.stringify(results.map(result => result.body)));
+        const admins = await owner`select 1 from public.profiles where public_id in (${first.publicId}, ${second.publicId}) and role = ${UserRole.Admin}`;
+        assert.equal(admins.length, 1);
+      } finally {
+        await owner`update public.profiles set role = ${UserRole.Admin} where public_id = ${first.publicId}`;
+        await owner`update public.profiles set role = ${UserRole.ClubLeader} where public_id = ${second.publicId}`;
+      }
+    });
+
+    await t.test('role changes are enforced in Postgres, not only by middleware', async () => {
+      const asUser = (authUserId: string, work: (tx: typeof owner) => Promise<unknown>) => owner.begin(async tx => {
+        await tx`set local role hootus_api`;
+        await tx`select set_config('request.jwt.claim.sub', ${authUserId}, true)`;
+        return work(tx as unknown as typeof owner);
+      });
+      const target = users[UserRole.Student].publicId;
+      await assert.rejects(asUser(users[UserRole.ClubLeader].id, tx => tx`select * from private.set_profile_role(${target}, 'admin')`),
+        { code: '42501' });
+      await assert.rejects(asUser(users[UserRole.Student].id, tx => tx`update public.profiles set role = 'admin' where public_id = ${target}`),
+        { code: '42501' });
+      await assert.rejects(asUser(users[UserRole.Admin].id, tx => tx`select * from private.set_profile_role(${users[UserRole.Admin].publicId}, 'student')`),
+        { code: '42501' });
+      const [stored] = await owner`select role from public.profiles where public_id = ${target}`;
+      assert.equal(stored.role, UserRole.Student);
     });
 
     await t.test('admin params must be UUIDs and missing records are 404', async () => {

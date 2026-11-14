@@ -38,6 +38,39 @@ const getUsersIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{
 export const getUsers = new PreparedQuery<IGetUsersParams,IGetUsersResult>(getUsersIR);
 
 
+/** 'SetUserRole' parameters type */
+export interface ISetUserRoleParams {
+  id: string;
+  role: string;
+}
+
+/** 'SetUserRole' return type */
+export interface ISetUserRoleResult {
+  avatar_url: string | null;
+  created_at: Date | null;
+  full_name: string | null;
+  id: string | null;
+  role: string | null;
+}
+
+/** 'SetUserRole' query type */
+export interface ISetUserRoleQuery {
+  params: ISetUserRoleParams;
+  result: ISetUserRoleResult;
+}
+
+const setUserRoleIR: any = {"usedParamSet":{"id":true,"role":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":81,"b":84}]},{"name":"role","required":true,"transform":{"type":"scalar"},"locs":[{"a":93,"b":98}]}],"statement":"select id, full_name, role, avatar_url, created_at\nfrom private.set_profile_role(:id!::uuid, :role!::text)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select id, full_name, role, avatar_url, created_at
+ * from private.set_profile_role(:id!::uuid, :role!::text)
+ * ```
+ */
+export const setUserRole = new PreparedQuery<ISetUserRoleParams,ISetUserRoleResult>(setUserRoleIR);
+
+
 /** 'ModerateListing' parameters type */
 export interface IModerateListingParams {
   description?: string | null | void;

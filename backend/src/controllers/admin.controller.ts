@@ -5,12 +5,13 @@ import { assertAuthenticated } from '../helpers/auth.js';
 import { withAuthor } from '../helpers/authors.js';
 import { HttpError } from '../helpers/errors.js';
 import { pageSchema } from '../helpers/validation.js';
-import { ListingStatus } from '../types/domain.js';
+import { ListingStatus, UserRole } from '../types/domain.js';
 import { ErrorCode } from '../types/errorCode.js';
 
 const hasChange = (body: object) => Object.keys(body).length > 0;
 
 export const adminIdParams = z.strictObject({ id: z.uuid() });
+export const setUserRoleBody = z.strictObject({ role: z.enum(UserRole) });
 export const moderateListingBody = z.strictObject({
   status: z.enum(ListingStatus).optional(),
   title: z.string().trim().min(1).max(200).optional(),
@@ -29,6 +30,16 @@ export const getUsers: RequestHandler = async (req, res) => {
   const { limit, offset } = res.locals.query as z.infer<typeof pageSchema>;
   const data = await req.db(tx => q.getUsers.run({ limit, offset }, tx));
   res.json({ data });
+};
+
+export const setUserRole: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof adminIdParams>;
+  const { role } = res.locals.body as z.infer<typeof setUserRoleBody>;
+  if (id === req.user.id) throw new HttpError(409, ErrorCode.Conflict, 'Admins cannot change their own role.');
+  const [user] = await req.db(tx => q.setUserRole.run({ id, role }, tx));
+  if (!user) throw new HttpError(404, ErrorCode.NotFound, 'That member no longer exists.');
+  res.json({ data: user });
 };
 
 export const moderateListing: RequestHandler = async (req, res) => {
