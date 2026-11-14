@@ -109,6 +109,7 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | GET | `/api/feed` | Confirmed Temple user |
 | POST | `/api/feed` | Club leader/admin; perks require admin |
 | GET | `/api/admin/users` | Admin; members' public `id`, name, role, photo, join date (`?limit&offset`) |
+| PATCH | `/api/admin/users/:id` | Admin; `{ role }` for another member (not yourself), via `private.set_profile_role` |
 | PATCH | `/api/admin/listings/:id` | Admin; any listing's `status`, `title` or `description` |
 | DELETE | `/api/admin/listings/:id` | Admin; deletes any listing, returns `{ id }` |
 | PATCH | `/api/admin/feed/:id` | Admin; any feed post's `title` or `body` |
