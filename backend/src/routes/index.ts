@@ -6,6 +6,9 @@ import { profileRoutes } from './profile.routes.js';
 import { authRoutes } from './auth.routes.js';
 import { requireAuth } from '../middleware/auth.js';
 import { campusRoutes } from './campus.routes.js';
+import { messagingRoutes } from './messaging.routes.js';
+import { notificationsRoutes } from './notifications.routes.js';
+import { pushRoutes } from './push.routes.js';
 
 export const routes = Router();
 const protectedRoutes = Router();
@@ -20,4 +23,7 @@ protectedRoutes.use('/listings', listingsRoutes);
 protectedRoutes.use('/feed', feedRoutes);
 protectedRoutes.use('/profile', profileRoutes);
 protectedRoutes.use('/campus', campusRoutes);
+protectedRoutes.use('/messaging', messagingRoutes);
+protectedRoutes.use('/notifications', notificationsRoutes);
+protectedRoutes.use('/push', pushRoutes);
 routes.use(protectedRoutes);
