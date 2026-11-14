@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Wordmark } from '../Logo'
+
 import Icon from './Icon'
+import { apiRequest } from '../../lib/api'
 import useCampusData from './useCampusData'
 import './campus.css'
 
@@ -30,6 +31,12 @@ const navigation = [
   { label: 'Saved', icon: 'save', path: '/saved' },
 ]
 
+const hubNav = [
+  { label: 'Community', path: '/dashboard' },
+  { label: 'Marketplace', path: '/marketplace' },
+  { label: 'Real estate', path: '/real-estate' },
+]
+
 const CampusContext = createContext(null)
 
 function FollowButton({ club, compact = false }) {
@@ -43,6 +50,34 @@ function EventSummary({ event }) {
   return <div className="event-summary"><div><span className="campus-caption">{event.type}</span><a className="event-title" href={`#/events/${event.id}`}>{event.title}</a><p><Icon name="calendar" size={14} />{event.month} {event.day}, {event.time.split('–')[0]}<span className="event-summary-price">{event.price}</span></p></div><button type="button" className={`campus-rsvp ${attending.includes(event.id) ? 'is-attending' : ''}`} aria-pressed={attending.includes(event.id)} aria-label={`${attending.includes(event.id) ? 'Cancel RSVP for' : 'RSVP for'} ${event.title}`} disabled={busy} onClick={() => rsvp(event.id)}>{attending.includes(event.id) ? <><Icon name="check" size={14} /> Going</> : 'RSVP'}</button></div>
 }
 
+function RsvpTicket({ event, className = 'mt-6 flex text-ink', style = { rotate: '0deg' } }) {
+  const { attending } = useContext(CampusContext)
+  const capacity = 40
+  const claimed = attending.includes(event.id) ? 1 : 0
+  return (
+    <div className={className} style={style}>
+      <div className='flex-1 rounded-l-lg bg-paper p-5'>
+        <p className='eyebrow text-cherry'>Admit one</p>
+        <p className='mt-1 font-display text-2xl font-extrabold tracking-tight'>{event.title}</p>
+        <p className='font-mono text-xs text-ink/60'>{event.date} · {event.time} · {event.price}</p>
+        <div className='mt-4 h-2.5 border-2 border-ink bg-white'>
+          <div className='h-full bg-cherry' style={{ width: (claimed / capacity) * 100 + '%' }} />
+        </div>
+        <p className='mt-1 font-mono text-[10px] uppercase tracking-widest text-ink/60'>{claimed + ' / ' + capacity + ' claimed · ' + (capacity - claimed) + ' left'}</p>
+      </div>
+      <div className='relative grid w-24 place-items-center rounded-r-lg border-l-2 border-dashed border-ink bg-sun'>
+        <span className='absolute -left-2.5 -top-2.5 h-5 w-5 rounded-full bg-ink' />
+        <span className='absolute -bottom-2.5 -left-2.5 h-5 w-5 rounded-full bg-ink' />
+        <div className='grid grid-cols-5 gap-0.5' aria-hidden='true'>
+          {'1011001101110100101101011'.split('').map((b, i) => (
+            <span key={i} className={'h-2.5 w-2.5 ' + (b === '1' ? 'bg-ink' : '')} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Post({ post }) {
   const { liked, toggleLiked, saved, save, clubById, eventById, busy } = useContext(CampusContext)
   const club = clubById(post.club)
@@ -51,7 +86,7 @@ function Post({ post }) {
   return <article className="campus-post">
     <div className="post-identity"><a href={`#/clubs/${club.id}`} aria-label={`${club.name} profile`}><Avatar club={club} /></a><div><a href={`#/clubs/${club.id}`} className="post-author">{club.name}</a><span className="post-handle">@{club.handle}</span></div><span className="post-time">{post.time} ago</span></div>
     <p className="post-text">{post.text}</p>
-    {event && <div className="post-event"><a className="poster-link" href={`#/events/${event.id}`} aria-label={`View ${event.title}`}><Poster event={event} /></a><EventSummary event={event} /></div>}
+    {event && <div className="post-event"><a className="poster-link" href={`#/events/${event.id}`} aria-label={`View ${event.title}`}><Poster event={event} /></a><RsvpTicket event={event} className='my-4 flex w-full text-ink' /><EventSummary event={event} /></div>}
     <div className="post-actions"><button type="button" aria-pressed={liked.includes(post.id)} className={liked.includes(post.id) ? 'is-liked' : ''} aria-label={`${liked.includes(post.id) ? 'Unlike' : 'Like'} post by ${club.name}`} disabled={busy} onClick={() => toggleLiked(post.id)}><Icon name="heart" size={18} />{post.likes}</button><button type="button" aria-pressed={saved.includes(post.id)} className={saved.includes(post.id) ? 'is-saved' : ''} disabled={busy} onClick={() => save(post.id)}><Icon name="save" size={17} />{saved.includes(post.id) ? 'Saved' : 'Save'}</button><a href={`#/clubs/${club.id}`}>Visit club<Icon name="arrow" size={15} /></a></div>
   </article>
 }
@@ -99,6 +134,19 @@ export default function Campus({ hash }) {
   const campus = useCampusData()
   const { clubs, events, posts, savedPosts, listings, following, saved, attending, liked,
     follow, save, rsvp, like: toggleLiked, busy, notice, setNotice, incomingCount, revealPosts } = campus
+  const [profile, setProfile] = useState(null)
+  const initials = (profile?.full_name || 'TUJ Student').split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('')
+  const userAvatarUrl = profile?.avatar_url
+  const userInitials = profile ? initials : 'You'
+  const userName = profile?.full_name || 'Your profile'
+  useEffect(() => {
+    if (campus.signInRequired || !campus.hasData) { setProfile(null); return }
+    const controller = new AbortController()
+    apiRequest('/profile/me', { signal: controller.signal })
+      .then(setProfile)
+      .catch(() => {})
+    return () => controller.abort()
+  }, [campus.signInRequired, campus.hasData])
   const clubById = (id) => clubs.find(club => club.id === id || club.slug === id)
   const eventById = (id) => events.find(event => event.id === id || event.slug === id)
   const [tab, setTab] = useState('following')
@@ -110,7 +158,7 @@ export default function Campus({ hash }) {
   const isEventDetail = path.startsWith('/events/')
   const selectedClub = isClubDetail ? clubById(path.split('/')[2]) : null
   const selectedEvent = isEventDetail ? eventById(path.split('/')[2]) : null
-  const title = selectedClub?.name || selectedEvent?.type || navigation.find((item) => item.path === path)?.label || 'Communities'
+  const title = selectedClub?.name || selectedEvent?.type || hubNav.find((item) => item.path === path)?.label || navigation.find((item) => item.path === path)?.label || 'Communities'
 
   useEffect(() => {
     document.title = `${title} · HUS Campus`
@@ -139,12 +187,20 @@ export default function Campus({ hash }) {
       <section className="club-profile-info"><div className="club-profile-top"><Avatar club={selectedClub} large /><FollowButton club={selectedClub} /></div><span className="campus-caption">{selectedClub.category}</span><h1>{selectedClub.name}</h1><p className="post-handle">@{selectedClub.handle}</p><p className="profile-description">{selectedClub.description}</p><div className="profile-facts"><span><Icon name="friends" size={16} />{selectedClub.followers} followers</span><span><Icon name="clock" size={16} />{selectedClub.meeting}</span><span><Icon name="pin" size={16} />{selectedClub.location}</span></div><p className="profile-note">Follow for updates. For membership, ask the club at its next meetup.</p></section>
       <PostComposer clubId={selectedClub.id} />{incomingCount > 0 && <button type="button" className="new-post-banner" onClick={revealPosts}>New community updates · Show updates<Icon name="arrow" size={15} /></button>}<div className="feed-section-heading"><h2>From the club</h2></div>{feedPosts.filter((post) => post.club === selectedClub.id).map((post) => <Post key={post.id} post={post} />)}
     </>
-    if (selectedEvent) return <section className="event-detail"><Poster event={selectedEvent} /><div className="event-detail-content"><a className="event-host" href={`#/clubs/${selectedEvent.club}`}><Avatar club={clubById(selectedEvent.club)} /><span>Hosted by<strong>{clubById(selectedEvent.club)?.name || 'Campus club'}</strong></span><Icon name="arrow" size={18} /></a><span className="campus-caption">{selectedEvent.type}</span><h1>{selectedEvent.title}</h1><div className="event-facts"><p><Icon name="calendar" /><span>{selectedEvent.date}<small>{selectedEvent.time}</small></span></p><p><Icon name="pin" /><span>{selectedEvent.location}<small>{selectedEvent.price}</small></span></p></div><h2>The plan</h2><p>{selectedEvent.description}</p><p>{selectedEvent.note}</p><button type="button" className={`campus-button event-rsvp-button ${attending.includes(selectedEvent.id) ? 'is-following' : ''}`} aria-pressed={attending.includes(selectedEvent.id)} disabled={busy} onClick={() => rsvp(selectedEvent.id)}><Icon name={attending.includes(selectedEvent.id) ? 'check' : 'calendar'} size={18} />{attending.includes(selectedEvent.id) ? 'Cancel RSVP' : 'Count me in · RSVP'}</button><p className="preview-note">{clubById(selectedEvent.club)?.isSample ? 'Sample event. Your RSVP is saved to your HUS account.' : 'Your RSVP is saved to your HUS account.'} Times shown in Japan time.</p></div></section>
+    if (selectedEvent) return <section className="event-detail"><Poster event={selectedEvent} /><div className="event-detail-content"><a className="event-host" href={`#/clubs/${selectedEvent.club}`}><Avatar club={clubById(selectedEvent.club)} /><span>Hosted by<strong>{clubById(selectedEvent.club)?.name || 'Campus club'}</strong></span><Icon name="arrow" size={18} /></a><span className="campus-caption">{selectedEvent.type}</span><h1>{selectedEvent.title}</h1><div className="event-facts"><p><Icon name="calendar" /><span>{selectedEvent.date}<small>{selectedEvent.time}</small></span></p><p><Icon name="pin" /><span>{selectedEvent.location}<small>{selectedEvent.price}</small></span></p></div><RsvpTicket event={selectedEvent} className='my-6 flex w-full max-w-sm text-ink' /><h2>The plan</h2><p>{selectedEvent.description}</p><p>{selectedEvent.note}</p><button type="button" className={`campus-button event-rsvp-button ${attending.includes(selectedEvent.id) ? 'is-following' : ''}`} aria-pressed={attending.includes(selectedEvent.id)} disabled={busy} onClick={() => rsvp(selectedEvent.id)}><Icon name={attending.includes(selectedEvent.id) ? 'check' : 'calendar'} size={18} />{attending.includes(selectedEvent.id) ? 'Cancel RSVP' : 'Count me in · RSVP'}</button><p className="preview-note">{clubById(selectedEvent.club)?.isSample ? 'Sample event. Your RSVP is saved to your HUS account.' : 'Your RSVP is saved to your HUS account.'} Times shown in Japan time.</p></div></section>
     if (path === '/dashboard') return <>
       <section className="campus-welcome"><span className="campus-caption">Your campus, connected</span><h1>A little more<br />campus in your day.</h1><p>Find your people. Make a plan. Make yourself at home.</p><a href="#/clubs" className="campus-button">Explore communities<Icon name="arrow" size={17} /></a><span className="welcome-flower" aria-hidden="true">✳</span></section>
       <div className="feed-section-heading"><div><span className="campus-caption">Out of the group chat</span><h2>On campus this week</h2></div><a href="#/clubs">All updates <Icon name="arrow" size={16} /></a></div><>{posts[0] ? <Post post={posts[0]} /> : <Empty heading="Your campus story starts here">Club posts will appear as they’re published.</Empty>}</>
       <section className="dashboard-listings"><div className="section-line"><div><span className="campus-caption">Pass it on</span><h2>Marketplace finds</h2></div><span>Latest listings</span></div>{listings.filter((listing) => listing.kind === 'market').map((listing) => <Listing key={listing.id} listing={listing} />)}</section>
       <section className="dashboard-listings"><div className="section-line"><div><span className="campus-caption">Settle into Tokyo</span><h2>Somewhere to call home</h2></div></div>{listings.filter(listing => listing.kind === 'housing').map(listing => <Listing key={listing.id} listing={listing} />)}</section>
+    </>
+    if (path === '/marketplace') return <>
+      <section className="hub-welcome market-welcome"><span className="campus-caption">Buy, sell, trade</span><h1>Student marketplace.</h1><p>Furniture, clothes, electronics, and the occasional gig. Only TUJ students.</p></section>
+      <section className="hub-listings market-listings"><div className="section-line"><div><span className="campus-caption">Latest picks</span><h2>On the market</h2></div></div>{listings.filter((listing) => listing.kind === 'market').length ? listings.filter((listing) => listing.kind === 'market').map((listing) => <Listing key={listing.id} listing={listing} />) : <Empty heading="Nothing for sale right now">Check back later, or post your own listing.</Empty>}</section>
+    </>
+    if (path === '/real-estate') return <>
+      <section className="hub-welcome housing-welcome"><span className="campus-caption">Rooms &amp; sublets</span><h1>Somewhere to call home.</h1><p>Sublets, sharehouses, and roommate searches near campus.</p></section>
+      <section className="hub-listings housing-listings"><div className="section-line"><div><span className="campus-caption">Near TUJ</span><h2>Housing listings</h2></div></div>{listings.filter((listing) => listing.kind === 'housing').length ? listings.filter((listing) => listing.kind === 'housing').map((listing) => <Listing key={listing.id} listing={listing} />) : <Empty heading="No rooms posted right now">Check back later for sublets and sharehouses.</Empty>}</section>
     </>
     if (path === '/activity') return <><div className="page-intro"><h1>Your activity</h1><p>Your upcoming plans and updates, in one place.</p></div>{attending.length ? <><div className="feed-section-heading"><h2>You’re going</h2></div>{events.filter((event) => attending.includes(event.id)).map((event) => <div className="activity-event" key={event.id}><EventSummary event={event} /></div>)}</> : <Empty heading="Your next plan starts here">RSVP to an event and it will appear here.<a className="campus-button" href="#/clubs">Find your next meetup</a></Empty>}<div className="activity-note"><Icon name="activity" /><p>Your RSVPs are saved to your account. Replies and friend notifications are coming later.</p></div></>
     if (path === '/friends') return <><div className="page-intro"><h1>Good company starts here.</h1><p>A shared interest is a pretty good introduction.</p></div><Empty heading="Find a familiar face">Explore a club or head to an event to meet other students. Friend connections are coming in a later version.<a href="#/clubs" className="campus-button">Explore communities</a></Empty><div className="friends-clubs">{clubs.slice(0, 3).map((club) => <a key={club.id} href={`#/clubs/${club.id}`}><Avatar club={club} /><span><strong>{club.name}</strong><small>{club.category}</small></span><Icon name="arrow" /></a>)}</div></>
@@ -169,8 +225,11 @@ export default function Campus({ hash }) {
   return <CampusContext.Provider value={{ following, follow, attending, rsvp, liked, toggleLiked, saved, save, visibleClubs, category, setCategory, clubById, eventById, clubs, events, publish: campus.publish, busy }}><div className="campus-app">
     <a className="campus-skip" href="#campus-main" onClick={(event) => { event.preventDefault(); mainRef.current?.focus() }}>Skip to content</a>
     <div className="campus-shell">
-      <aside className="campus-sidebar"><a href="#/dashboard" className="campus-brand" aria-label="HUS dashboard"><Wordmark /><span>Made for TUJ.</span></a><nav className="campus-nav" aria-label="Campus navigation">{navigation.map((item) => { const active = path === item.path || item.path === '/clubs' && (isClubDetail || isEventDetail); return <a key={item.path} href={`#${item.path}`} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon name={item.icon} /><span>{item.label}</span>{item.path === '/activity' && attending.length > 0 && <span className="nav-count">{attending.length}</span>}</a> })}</nav><div className="sidebar-note"><span aria-hidden="true">↗</span><p>A campus is a place.<br />A community is its people.</p><a href="#/clubs">Find yours here.</a></div><a href="#/profile" className="campus-user"><span className="user-avatar">You</span><span><strong>Your profile</strong><small>Make yourself at home</small></span><Icon name="arrow" size={16} /></a><a href="#top" className="back-to-site">About HUS <Icon name="external" size={13} /></a></aside>
-      <main id="campus-main" className="campus-main" tabIndex={-1} ref={mainRef}><header className="campus-header"><div>{(isClubDetail || isEventDetail) && <a href="#/clubs" className="campus-back" aria-label="Back to communities"><Icon name="back" size={20} /></a>}<span>{title}</span></div><span className="preview-badge"><span />{campus.error ? 'Updates paused' : campus.hasData ? 'Connected' : 'HUS Campus'}</span></header>{campus.hasData && campus.error && <div className="campus-error" role="alert">Updates paused. {campus.error}<button type="button" onClick={campus.refresh}>Retry</button></div>}{renderMain()}<footer className="campus-feed-footer">Seeded sample clubs and listings are illustrative, not official TUJ records.</footer></main>
+      <aside className="campus-sidebar"><a href='#/profile' className='campus-user'><span className='user-avatar' style={userAvatarUrl ? { backgroundImage: 'url(' + userAvatarUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {}} aria-hidden='true'>{userAvatarUrl ? '' : userInitials}</span><span><strong>{userName}</strong><small>Make yourself at home</small></span><Icon name='arrow' size={16} /></a><nav className="campus-nav" aria-label="Campus navigation">{navigation.map((item) => { const active = path === item.path || item.path === '/clubs' && (isClubDetail || isEventDetail); return <a key={item.path} href={`#${item.path}`} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon name={item.icon} /><span>{item.label}</span>{item.path === '/activity' && attending.length > 0 && <span className="nav-count">{attending.length}</span>}</a> })}</nav><div className="sidebar-note"><span aria-hidden="true">↗</span><p>A campus is a place.<br />A community is its people.</p><a href="#/clubs">Find yours here.</a></div><a href="#top" className="back-to-site">About HUS <Icon name="external" size={13} /></a></aside>
+      <main id="campus-main" className="campus-main" tabIndex={-1} ref={mainRef}>
+        <header className="campus-header"><div>{(isClubDetail || isEventDetail) && <a href="#/clubs" className="campus-back" aria-label="Back to communities"><Icon name="back" size={20} /></a>}<span>{title}</span></div><span className="preview-badge"><span />{campus.error ? 'Updates paused' : campus.hasData ? 'Connected' : 'HUS Campus'}</span></header>
+        {campus.hasData && campus.error && <div className="campus-error" role="alert">Updates paused. {campus.error}<button type="button" onClick={campus.refresh}>Retry</button></div>}{renderMain()}<footer className="campus-feed-footer">Seeded sample clubs and listings are illustrative, not official TUJ records.</footer>
+      </main>
       <aside className="campus-right" aria-label="Discover clubs and events"><div className="right-top"><span className="campus-caption">A little outside your circle</span><span aria-hidden="true">✳</span></div><section className="suggested-clubs"><div className="section-line"><h2>Room for one more.</h2></div><p>Your next favorite club could be right here.</p>{clubs.filter((club) => !following.includes(club.id)).slice(0, 3).map((club) => <div className="suggested-club" key={club.id}><a href={`#/clubs/${club.id}`}><Avatar club={club} /><span><strong>{club.name}</strong><small>{club.category}</small></span></a><FollowButton club={club} compact /></div>)}{clubs.length > 0 && clubs.every((club) => following.includes(club.id)) && <p className="inline-empty">You’re following every club here. Your campus circle is growing.</p>}<a className="campus-text-link" href="#/clubs" onClick={() => { setTab('discover'); setCategory('All'); setQuery('') }}>Explore all communities<Icon name="arrow" size={15} /></a></section><section className="right-events"><div className="section-line"><h2>Pencil it in.</h2><Icon name="calendar" size={18} /></div><p>A few good reasons to close your laptop.</p>{events.map((event) => <a href={`#/events/${event.id}`} className="right-event" key={event.id}><span className="event-date"><small>{event.month}</small><strong>{event.day}</strong></span><span><strong>{event.title}</strong><small>{clubById(event.club)?.name || 'Campus club'}</small></span><Icon name="arrow" size={15} /></a>)}</section><div className="campus-right-note"><span className="note-flower" aria-hidden="true">✳</span><h2>Show up as you are.</h2><p>New to campus? New to Tokyo?<br />There’s a place for you here.</p><a href="#/clubs" onClick={() => setTab('discover')}>Start with a club<Icon name="arrow" size={16} /></a></div><p className="right-footnote">HUS is a student community concept.<br />Sample clubs are not official TUJ listings.</p></aside>
     </div>
     <div className="campus-status" role="status" aria-live="polite">{(notice || busy) && <><span>{busy ? 'Saving your changes…' : notice}</span><button type="button" aria-label="Dismiss notification" onClick={() => setNotice('')}>×</button></>}</div>

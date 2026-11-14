@@ -43,7 +43,7 @@
 .sidebar-note { margin: 47px 16px 20px; color: var(--campus-muted); font-size: 12px; line-height: 1.7; }
 .sidebar-note > span { display: block; font-size: 30px; color: #b7bec4; margin-bottom: 6px; }
 .sidebar-note a { display: block; color: var(--campus-red); font-weight: 600; margin-top: 7px; }
-.campus-user { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 15px 0 10px 10px; border-top: 1px solid var(--campus-line); }
+.campus-user { margin: 0 0 43px 0; display: flex; align-items: center; gap: 10px; padding: 15px 0 10px 10px; }
 .user-avatar { width: 35px; height: 35px; border-radius: 50%; display: grid; place-items: center; background: #eee8e0; font-size: 11px; font-weight: 700; }
 .campus-user strong { font-size: 12px; display: block; }
 .campus-user small { font-size: 10px; color: var(--campus-muted); display: block; }
@@ -361,3 +361,38 @@
   .campus-poster .poster-top, .campus-poster .poster-bottom { font-size: 9px; }
   .post-actions { gap: 19px; }
 }
+
+/* Hub navigation and themed pages */
+.campus-topnav {
+  display: flex;
+  gap: 6px;
+  padding: 10px 28px;
+  background: #fff;
+  border-bottom: 1px solid var(--campus-line);
+  position: sticky;
+  top: 75px;
+  z-index: 19;
+}
+.campus-topnav a {
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--campus-muted);
+}
+.campus-topnav a:hover { background: #f5f6f7; color: var(--campus-ink); }
+.campus-topnav a.active { background: var(--campus-red); color: #fff; font-weight: 700; }
+
+.hub-welcome { padding: 32px 28px; border-bottom: 1px solid var(--campus-line); }
+.hub-welcome h1 { font-size: clamp(30px, 3vw, 42px); line-height: 1.1; font-weight: 700; letter-spacing: -1.2px; margin-top: 12px; }
+.hub-welcome p { margin-top: 12px; color: var(--campus-muted); font-size: 12px; max-width: 310px; }
+.hub-listings { padding: 25px 28px; border-bottom: 1px solid var(--campus-line); }
+.hub-listings .section-line { margin-bottom: 17px; }
+
+.market-welcome { background: #f7fbf3; }
+.market-welcome h1 { color: #3a6b2f; }
+.market-listings .campus-listing[open] summary { background: #f7fbf3; }
+
+.housing-welcome { background: #f2f8fb; }
+.housing-welcome h1 { color: #245282; }
+.housing-listings .campus-listing[open] summary { background: #f2f8fb; }
