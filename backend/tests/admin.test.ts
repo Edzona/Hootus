@@ -89,6 +89,23 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.equal(admins.role, UserRole.Admin);
     });
 
+    await t.test('two admins demoting each other leaves one admin, without a database error', async () => {
+      const [first, second] = [users[UserRole.Admin], users[UserRole.ClubLeader]];
+      await owner`update public.profiles set role = ${UserRole.Admin} where public_id = ${second.publicId}`;
+      try {
+        const results = await Promise.all([
+          call(`/api/admin/users/${second.publicId}`, first.token, { role: UserRole.Student }, {}, 'PATCH'),
+          call(`/api/admin/users/${first.publicId}`, second.token, { role: UserRole.Student }, {}, 'PATCH'),
+        ]);
+        assert.deepEqual(results.map(result => result.status).sort(), [200, 403], JSON.stringify(results.map(result => result.body)));
+        const admins = await owner`select 1 from public.profiles where public_id in (${first.publicId}, ${second.publicId}) and role = ${UserRole.Admin}`;
+        assert.equal(admins.length, 1);
+      } finally {
+        await owner`update public.profiles set role = ${UserRole.Admin} where public_id = ${first.publicId}`;
+        await owner`update public.profiles set role = ${UserRole.ClubLeader} where public_id = ${second.publicId}`;
+      }
+    });
+
     await t.test('role changes are enforced in Postgres, not only by middleware', async () => {
       const asUser = (authUserId: string, work: (tx: typeof owner) => Promise<unknown>) => owner.begin(async tx => {
         await tx`set local role hootus_api`;
