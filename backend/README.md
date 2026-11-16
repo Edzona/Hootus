@@ -100,38 +100,45 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | Method | Path | Access |
 | --- | --- | --- |
 | GET | `/health`, `/api/health` | Public |
-| POST | `/api/auth/signup` | Public; validated Temple email, name, student ID; requests an email code |
+| POST | `/api/auth/signup` | Public; validated Temple email and name; requests an email code |
 | POST | `/api/auth/signin` | Public; existing-account email-code request |
-| GET | `/api/profile/me` | Confirmed Temple user; own profile |
-| PATCH | `/api/profile/me` | Confirmed Temple user; own bio (max 500) and photo URL from their own `avatars` folder |
-| GET | `/api/listings` | Confirmed Temple user |
-| POST | `/api/listings` | Confirmed Temple user; `image_urls` must be the caller's own `listing-photos` uploads |
-| GET | `/api/listings/mine/sold` | Confirmed Temple user; own sold listings, newest first |
+| GET | `/api/profile/me` | Confirmed member; own profile |
+| PATCH | `/api/profile/me` | Confirmed member; own bio (max 500), photo URL from own `avatars` folder, or `email_digest` |
+| GET | `/api/listings` | Confirmed member |
+| POST | `/api/listings` | Confirmed member; `image_urls` must be the caller's own `listing-photos` uploads |
+| GET | `/api/listings/mine/sold` | Confirmed member; own sold listings, newest first |
+| GET | `/api/listings/:id/contact` | Confirmed member; active listing seller's email and display name |
+| PATCH | `/api/listings/:id` | Listing author; edit own active listing |
 | PATCH | `/api/listings/:id/status` | Listing author; active listing to `{ status: "sold" \| "closed" }` |
-| GET | `/api/feed` | Confirmed Temple user |
-| POST | `/api/feed` | Club leader/admin; perks require admin |
+| GET | `/api/feed` | Confirmed member |
+| POST | `/api/feed` | Club leader/admin for events; club leader/manager/partner/admin for perks |
 | GET | `/api/admin/users` | Admin; members' public `id`, name, role, photo, join date (`?limit&offset`) |
 | PATCH | `/api/admin/users/:id` | Admin; `{ role }` for another member (not yourself), via `private.set_profile_role` |
 | PATCH | `/api/admin/listings/:id` | Admin; any listing's `status`, `title` or `description` |
 | DELETE | `/api/admin/listings/:id` | Admin; deletes any listing, returns `{ id }` |
 | PATCH | `/api/admin/feed/:id` | Admin; any feed post's `title` or `body` |
 | DELETE | `/api/admin/feed/:id` | Admin; deletes any feed post, returns `{ id }` |
-| GET | `/api/campus` | Confirmed Temple user; clubs, events, posts, own saved posts, listing suggestions |
-| PUT | `/api/campus/actions/:action/:id` | Confirmed Temple user; idempotent follow/like/save/rsvp, `{ active: boolean }` |
-| POST | `/api/messaging/listings/:listingId/conversations` | Confirmed Temple user; another member's active listing; returns `{ id }` |
-| GET | `/api/messaging/conversations` | Confirmed Temple user; own conversations, newest first |
-| GET | `/api/messaging/conversations/:conversationId` | Conversation participant; chat header |
-| GET | `/api/messaging/conversations/:conversationId/messages` | Conversation participant; `?limit=30&before=<timestamp>` |
-| POST | `/api/messaging/conversations/:conversationId/messages` | Conversation participant; `{ body }` (max 2000) |
-| GET | `/api/notifications` | Confirmed Temple user; own notifications, newest first, with `meta.unread` |
-| GET | `/api/notifications/unread-count` | Confirmed Temple user; `{ unread }` |
-| POST | `/api/notifications/:notificationId/read` | Confirmed Temple user; own notification, 204 |
-| POST | `/api/notifications/read-all` | Confirmed Temple user; `{ marked }` |
-| GET | `/api/push/config` | Confirmed Temple user; `{ publicKey, devices }`, `publicKey` null when push is off |
-| POST | `/api/push/subscriptions` | Confirmed Temple user; the browser's `PushSubscription.toJSON()` |
-| DELETE | `/api/push/subscriptions` | Confirmed Temple user; `{ endpoint }`, own devices only, 204 |
-| POST | `/api/campus/clubs/:clubId/posts` | Owning club leader/admin; `{ text, eventId? }` |
-| POST | `/api/campus/clubs/:clubId/events` | Owning club leader/admin; event details |
+| GET | `/api/admin/club-requests` | Admin; club creation requests (`?limit&offset`) |
+| PATCH | `/api/admin/club-requests/:id` | Admin; approve or reject a pending club request (`{ decision, note? }`) |
+| POST | `/api/admin/partners` | Admin; onboard a third-party partner account and partner page |
+| GET | `/api/campus` | Confirmed member; clubs, events, posts, own saved posts, listing suggestions |
+| PUT | `/api/campus/actions/:action/:id` | Confirmed member; idempotent follow/like/save/rsvp, `{ active: boolean }` |
+| PATCH | `/api/campus/clubs/:clubId` | Club manager/leader/admin; edit club or partner page details |
+| POST | `/api/campus/clubs/:clubId/posts` | Club manager/leader/admin; `{ text, eventId?, image_urls? }` |
+| POST | `/api/campus/clubs/:clubId/events` | Club manager/leader/admin; event details and optional `image_urls` |
+| POST | `/api/campus/clubs/:clubId/membership` | Confirmed member; request to join a club |
+| DELETE | `/api/campus/clubs/:clubId/membership` | Confirmed member; cancel pending request or leave club |
+| GET | `/api/campus/clubs/:clubId/members` | Club manager/leader/admin; list pending and approved members |
+| PATCH | `/api/campus/clubs/:clubId/members/:memberId` | Club manager/leader/admin; approve/reject or change member role |
+| DELETE | `/api/campus/clubs/:clubId/members/:memberId` | Club manager/leader/admin; remove a non-founder member |
+| GET | `/api/campus/club-requests` | Confirmed member; own submitted club creation requests |
+| POST | `/api/campus/club-requests` | Confirmed member; submit a club creation request for admin review |
+| GET | `/api/notifications` | Confirmed member; own notifications, newest first, with `meta.unread` |
+| GET | `/api/notifications/unread-count` | Confirmed member; `{ unread }` |
+| POST | `/api/notifications/:notificationId/read` | Confirmed member; own notification, 204 |
+| POST | `/api/notifications/read-all` | Confirmed member; `{ marked }` |
+| GET, POST | `/api/digest/send` | Cron job (`Authorization: Bearer <CRON_SECRET>`); sends daily digest emails |
+| GET | `/api/digest/unsubscribe` | Public; one-click unsubscribe with signed `?token=` |
 
 Database tables use internal bigint primary/foreign keys and a unique `public_id`
 UUID. API responses expose the record UUID as `id`. Listings and feed posts
@@ -297,10 +304,8 @@ Alternatively, use two separate Vercel projects from this repository:
 
 Vercel cannot connect to the Supabase instance on your laptop's `127.0.0.1`.
 Raw Realtime table subscriptions are deliberately unavailable to browser roles.
-The messages table remains in the publication, but its table grants are revoked.
-Messaging needs an authorized API and a separate minimal notification contract;
-do not re-enable table access to make raw subscriptions work. Listing messages use the
-authorized `/api/messaging` endpoints above, polled by the client.
+Do not re-enable table access to make raw subscriptions work; notifications are
+read through the authorized `/api/notifications` endpoints, polled by the client.
 
 Email-confirmation setup is deferred for now. Before production, enable Confirm
 Email in hosted Supabase Auth. Local confirmation can be tested with the local
@@ -332,12 +337,11 @@ TypeScript is pinned to 5.9 because PgTyped CLI currently declares support throu
 
 ## Notifications
 
-Apply the notification migrations in order. A trigger on `messages` creates a
-notification for the recipient. While a conversation's notification is unread,
-new messages increase its `count` instead of adding rows. Loading a
-conversation's newest messages marks its notification read.
+Apply the notification migrations in order. A trigger on `listings` creates a
+notification for each other member. While a member's listing notification is
+unread, new listings increase its `count` instead of adding rows.
 
-Notifications are delivered by browser push only (below); new messages are not
+Notifications are delivered by browser push only (below); nothing is
 emailed. `20261110170000_remove_message_email.sql` removed the earlier email
 delivery. Supabase Auth still emails sign-in codes, which appear in local
 Mailpit as before.
@@ -364,8 +368,8 @@ Run `supabase/tests/listing_notifications.sql` like `access_control.sql`.
 
 Apply `20261101000000_push_subscriptions.sql`. Each browser that turns on
 notifications saves one `push_subscriptions` row: an endpoint on the browser
-vendor's push service plus the browser's encryption keys. A message's
-notification is pushed to every device of the recipient once, when the
+vendor's push service plus the browser's encryption keys. A new listing's
+notification is pushed to every device of each recipient once, when the
 notification is created, and tracked in `notifications.push_status`. Devices the
 push service reports as gone (404/410) are deleted.
 
@@ -387,7 +391,7 @@ push service", check its endpoint host and extend that list.
 
 The dev beta page (`#/beta/listings`) has a "Turn on notifications on this
 device" button. `frontend/public/sw.js` shows the notification and opens Hootus
-when it is clicked. Payloads name the sender and listing, never the message.
+when it is clicked. Payloads name the listing, its category, price and seller.
 Run `supabase/tests/push.sql` like the other SQL tests.
 
 ## Campus communities

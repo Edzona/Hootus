@@ -19,6 +19,29 @@ export const sql = postgres(env.DATABASE_URL, {
   onnotice: () => {},
 });
 
+export async function withServer<T>(
+  work: (tx: postgres.TransactionSql & IDatabaseConnection) => Promise<T>,
+): Promise<T> {
+  try {
+    let result!: T;
+    await sql.begin(async tx => {
+      await tx`set local statement_timeout = '30s'`;
+      const connection = Object.assign(tx, {
+        query: async (text: string, bindings: postgres.ParameterOrJSON<never>[]) => {
+          const rows = await tx.unsafe(text, bindings.map(value => value ?? null));
+          return { rows: [...rows], rowCount: rows.count };
+        },
+      });
+      result = await work(connection);
+    });
+    return result;
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    if (error instanceof postgres.PostgresError) databaseError(error);
+    throw new HttpError(502, ErrorCode.DatabaseError, 'The database request failed.');
+  }
+}
+
 export async function withUser<T>(
   authUserId: string,
   work: (tx: postgres.TransactionSql & IDatabaseConnection) => Promise<T>,

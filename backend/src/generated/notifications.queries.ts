@@ -10,12 +10,18 @@ export interface IGetNotificationsParams {
 /** 'GetNotifications' return type */
 export interface IGetNotificationsResult {
   actor_name: string | null;
-  conversation: string;
+  club: string;
+  club_event: string;
+  club_event_title: string;
+  club_name: string;
+  club_post: string;
+  club_post_body: string | null;
   created_at: Date;
   event_count: number;
   id: string;
   kind: string;
   listing: string;
+  listing_category: string;
   listing_title: string;
   read_at: Date | null;
   updated_at: Date;
@@ -27,7 +33,7 @@ export interface IGetNotificationsQuery {
   result: IGetNotificationsResult;
 }
 
-const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":591,"b":597}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":611,"b":618}]}],"statement":"-- RLS limits rows to your own notifications. Newest activity first.\nselect n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,\n  private.author_name(n.actor_id) as actor_name,\n  c.public_id as conversation, l.public_id as listing, l.title as listing_title\nfrom public.notifications n\nleft join public.conversations c on c.id = n.conversation_id\n-- Message notifications: the conversation's listing. Listing notifications: the newest listing.\nleft join public.listings l on l.id = coalesce(n.listing_id, c.listing_id)\norder by n.updated_at desc, n.id desc\nlimit :limit!::int offset :offset!::int"};
+const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":744,"b":750}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":764,"b":771}]}],"statement":"-- RLS limits rows to your own notifications. Newest activity first.\nselect n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,\n  private.author_name(n.actor_id) as actor_name,\n  l.public_id as listing, l.title as listing_title, l.category as listing_category,\n  c.public_id as club, c.name as club_name,\n  cp.public_id as club_post, left(cp.body, 120) as club_post_body,\n  ce.public_id as club_event, ce.title as club_event_title\nfrom public.notifications n\nleft join public.listings l on l.id = n.listing_id\nleft join public.clubs c on c.id = n.club_id\nleft join public.club_posts cp on cp.id = n.club_post_id\nleft join public.club_events ce on ce.id = n.club_event_id\norder by n.updated_at desc, n.id desc\nlimit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -35,11 +41,15 @@ const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"pa
  * -- RLS limits rows to your own notifications. Newest activity first.
  * select n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,
  *   private.author_name(n.actor_id) as actor_name,
- *   c.public_id as conversation, l.public_id as listing, l.title as listing_title
+ *   l.public_id as listing, l.title as listing_title, l.category as listing_category,
+ *   c.public_id as club, c.name as club_name,
+ *   cp.public_id as club_post, left(cp.body, 120) as club_post_body,
+ *   ce.public_id as club_event, ce.title as club_event_title
  * from public.notifications n
- * left join public.conversations c on c.id = n.conversation_id
- * -- Message notifications: the conversation's listing. Listing notifications: the newest listing.
- * left join public.listings l on l.id = coalesce(n.listing_id, c.listing_id)
+ * left join public.listings l on l.id = n.listing_id
+ * left join public.clubs c on c.id = n.club_id
+ * left join public.club_posts cp on cp.id = n.club_post_id
+ * left join public.club_events ce on ce.id = n.club_event_id
  * order by n.updated_at desc, n.id desc
  * limit :limit!::int offset :offset!::int
  * ```
@@ -127,39 +137,6 @@ const markAllNotificationsReadIR: any = {"usedParamSet":{},"params":[],"statemen
  * ```
  */
 export const markAllNotificationsRead = new PreparedQuery<IMarkAllNotificationsReadParams,IMarkAllNotificationsReadResult>(markAllNotificationsReadIR);
-
-
-/** 'MarkConversationNotificationsRead' parameters type */
-export interface IMarkConversationNotificationsReadParams {
-  conversationId: string;
-}
-
-/** 'MarkConversationNotificationsRead' return type */
-export interface IMarkConversationNotificationsReadResult {
-  id: string;
-}
-
-/** 'MarkConversationNotificationsRead' query type */
-export interface IMarkConversationNotificationsReadQuery {
-  params: IMarkConversationNotificationsReadParams;
-  result: IMarkConversationNotificationsReadResult;
-}
-
-const markConversationNotificationsReadIR: any = {"usedParamSet":{"conversationId":true},"params":[{"name":"conversationId","required":true,"transform":{"type":"scalar"},"locs":[{"a":180,"b":195}]}],"statement":"-- Opening a conversation clears its notification.\nupdate public.notifications n set read_at = now()\nfrom public.conversations c\nwhere c.id = n.conversation_id\n  and c.public_id = :conversationId!::uuid\n  and n.read_at is null\nreturning n.public_id as id"};
-
-/**
- * Query generated from SQL:
- * ```
- * -- Opening a conversation clears its notification.
- * update public.notifications n set read_at = now()
- * from public.conversations c
- * where c.id = n.conversation_id
- *   and c.public_id = :conversationId!::uuid
- *   and n.read_at is null
- * returning n.public_id as id
- * ```
- */
-export const markConversationNotificationsRead = new PreparedQuery<IMarkConversationNotificationsReadParams,IMarkConversationNotificationsReadResult>(markConversationNotificationsReadIR);
 
 
 /** 'MarkListingNotificationsRead' parameters type */
