@@ -110,6 +110,11 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | PATCH | `/api/listings/:id/status` | Listing author; active listing to `{ status: "sold" \| "closed" }` |
 | GET | `/api/feed` | Confirmed Temple user |
 | POST | `/api/feed` | Club leader/admin; perks require admin |
+| GET | `/api/admin/users` | Admin; members' public `id`, name, role, photo, join date (`?limit&offset`) |
+| PATCH | `/api/admin/listings/:id` | Admin; any listing's `status`, `title` or `description` |
+| DELETE | `/api/admin/listings/:id` | Admin; deletes any listing, returns `{ id }` |
+| PATCH | `/api/admin/feed/:id` | Admin; any feed post's `title` or `body` |
+| DELETE | `/api/admin/feed/:id` | Admin; deletes any feed post, returns `{ id }` |
 | GET | `/api/campus` | Confirmed Temple user; clubs, events, posts, own saved posts, listing suggestions |
 | PUT | `/api/campus/actions/:action/:id` | Confirmed Temple user; idempotent follow/like/save/rsvp, `{ active: boolean }` |
 | POST | `/api/messaging/listings/:listingId/conversations` | Confirmed Temple user; another member's active listing; returns `{ id }` |

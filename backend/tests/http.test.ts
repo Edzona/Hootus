@@ -17,6 +17,7 @@ test('health, protected routes, CORS, JSON errors and 404s', async () => {
     Origin: 'http://localhost:5173', 'Access-Control-Request-Method': 'PATCH',
   } });
   assert.match(preflight.headers.get('access-control-allow-methods') ?? '', /PATCH/);
+  assert.match(preflight.headers.get('access-control-allow-methods') ?? '', /DELETE/);
   const campusPreflight = await fetch(`${api.base}/api/campus/actions/follow/10000000-0000-4000-8000-000000000001`, {
     method: 'OPTIONS', headers: {
       Origin: 'http://localhost:5173', 'Access-Control-Request-Method': 'PUT',

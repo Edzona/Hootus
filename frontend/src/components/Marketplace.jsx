@@ -22,7 +22,7 @@ export default function Marketplace() {
           <p className="text-ink/60">Nothing for sale right now.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {listings.map((l, i) => (
+            {listings.map((l) => (
               <Flyer
                 key={l.id}
                 tag={l.label}
