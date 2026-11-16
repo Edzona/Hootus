@@ -4,139 +4,152 @@ begin;
 
 grant hootus_api to postgres;
 
--- seller (01), two members with push on (02, 03), one member without push (04)
-insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+-- seller (01), members (02, 03), partner (04, external email, admin-created only)
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data, raw_app_meta_data)
 values
-  ('50000000-0000-0000-0000-000000000001', 'hootus-ln-seller@temple.edu', now(), '{"full_name":"Sam Seller"}'),
-  ('50000000-0000-0000-0000-000000000002', 'hootus-ln-amy@temple.edu', now(), '{}'),
-  ('50000000-0000-0000-0000-000000000003', 'hootus-ln-ben@temple.edu', now(), '{}'),
-  ('50000000-0000-0000-0000-000000000004', 'hootus-ln-cal@temple.edu', now(), '{}');
+  ('50000000-0000-0000-0000-000000000001', 'hootus-ln-seller@temple.edu', now(), '{"full_name":"Sam Seller"}', '{}'),
+  ('50000000-0000-0000-0000-000000000002', 'hootus-ln-amy@temple.edu', now(), '{"full_name":"Amy"}', '{}'),
+  ('50000000-0000-0000-0000-000000000003', 'hootus-ln-ben@temple.edu', now(), '{"full_name":"Ben"}', '{}'),
+  ('50000000-0000-0000-0000-000000000004', 'hootus-ln-shop@example.com', now(), '{"full_name":"Shop"}', '{"hootus_partner":true}');
+
+-- Pretend everyone's last digest was yesterday, so today's listings are due.
+-- Keep any existing (seeded) profiles out of this test's digest window.
+update public.profiles set digest_sent_at = now() + interval '1 hour'
+where auth_user_id::text not like '50000000-%';
+update public.profiles set digest_sent_at = now() - interval '1 second'
+where auth_user_id::text like '50000000-%';
 
 set local role hootus_api;
 
--- Seller also has push on: they must not be notified about their own listing.
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
-select private.save_push_subscription('https://fcm.googleapis.com/fcm/send/seller', repeat('S', 87), repeat('s', 22));
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002', true);
-select private.save_push_subscription('https://fcm.googleapis.com/fcm/send/amy', repeat('A', 87), repeat('a', 22));
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000003', true);
-select private.save_push_subscription('https://fcm.googleapis.com/fcm/send/ben-laptop', repeat('B', 87), repeat('b', 22));
-select private.save_push_subscription('https://fcm.googleapis.com/fcm/send/ben-phone', repeat('C', 87), repeat('c', 22));
-
 -- Seller posts two listings in a row.
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
-create temporary table test_listings (n int, public_id uuid) on commit drop;
-grant all on test_listings to hootus_api;
-with posted as (
-  insert into public.listings (category, title, price_jpy) values ('sales', 'Desk lamp', 800)
-  returning public_id
-) insert into test_listings select 1, public_id from posted;
-with posted as (
-  insert into public.listings (category, title, price_jpy) values ('sales', 'Rice cooker', 2500)
-  returning public_id
-) insert into test_listings select 2, public_id from posted;
-
--- While the push is still pending, another member cannot claim it (and so never sees devices).
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000004', true);
+insert into public.listings (category, title, price_jpy) values ('sales', 'Desk lamp', 800);
+insert into public.listings (category, title, price_jpy) values ('sales', 'Rice cooker', 2500);
 do $$
-begin
-  assert (select count(*) = 0 from private.claim_listing_push(
-    (select public_id from test_listings where n = 1))), 'Only the author can claim listing push';
-end;
-$$;
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
-
-do $$
-declare
-  claimed int;
 begin
   assert (select count(*) = 0 from public.notifications), 'Seller must not be notified about their own listings';
-
-  -- The second listing was grouped into the first one's notifications: nothing to push.
-  assert (select count(*) = 0 from private.claim_listing_push(
-    (select public_id from test_listings where n = 2))), 'A grouped listing must not push again';
-
-  create temporary table claimed_rows on commit drop as
-    select * from private.claim_listing_push((select public_id from test_listings where n = 1));
-  assert (select count(*) = 3 from claimed_rows), 'Push must reach Amy''s device and both of Ben''s';
-  assert (select count(distinct notification_id) = 2 from claimed_rows), 'One notification each for Amy and Ben';
-  assert (select bool_and(author_name = 'Sam Seller' and listing_title = 'Desk lamp'
-    and category = 'sales' and price_jpy = 800) from claimed_rows), 'Claim must describe the listing';
-  assert (select count(*) = 0 from private.claim_listing_push(
-    (select public_id from test_listings where n = 1))), 'Push must only be claimed once';
-
-  -- While delivery is in progress, another member cannot record outcomes or delete devices.
-  perform set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000004', true);
-  assert private.finish_listing_push((select public_id from test_listings where n = 1), true,
-    '{}', array['https://fcm.googleapis.com/fcm/send/amy']) = 0, 'Only the author can finish listing push';
-  perform set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
-
-  -- Amy's device accepted; Ben's laptop is gone (410), his phone failed temporarily.
-  claimed := private.finish_listing_push((select public_id from test_listings where n = 1), true,
-    array['https://fcm.googleapis.com/fcm/send/amy'],
-    array['https://fcm.googleapis.com/fcm/send/ben-laptop']);
-  assert claimed = 2, 'Both notifications must be finished';
-  assert private.finish_listing_push((select public_id from test_listings where n = 1), true, '{}', '{}') = 0,
-    'Outcomes are final';
 end;
 $$;
 
--- Another member cannot claim or finish the seller's listing push.
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000004', true);
-do $$
-begin
-  assert (select count(*) = 0 from public.notifications), 'Members without push get no listing notifications';
-end;
-$$;
-
--- Amy: one grouped notification for both listings, pointing at the newest one, delivered.
+-- Amy: two separate notifications, newest one for Rice cooker.
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002', true);
 do $$
 begin
-  assert (select count(*) = 1 and min(event_count) = 2 and min(push_status) = 'sent'
-    from public.notifications where kind = 'listing'), 'Amy has one delivered notification counting both listings';
-  assert (select l.title = 'Rice cooker' from public.notifications n
-    join public.listings l on l.id = n.listing_id), 'Notification points at the newest listing';
-  assert (select last_success_at is not null from public.push_subscriptions), 'Working device marked';
+  assert (select count(*) = 2 from public.notifications where kind = 'listing'),
+    'Amy has two separate listing notifications';
+  assert (select exists (select 1 from public.notifications n join public.listings l on l.id = n.listing_id where l.title = 'Rice cooker')),
+    'Amy has a notification for Rice cooker';
 end;
 $$;
 -- Amy opens the listings page (same statement as MarkListingNotificationsRead).
 update public.notifications set read_at = now() where kind = 'listing' and read_at is null;
 
--- Ben: notification failed (no device accepted), dead laptop removed, phone kept.
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000003', true);
+-- The partner is not notified about listings it cannot see.
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000004', true);
 do $$
 begin
-  assert (select min(push_status) = 'failed' from public.notifications where kind = 'listing'),
-    'Ben''s notification is failed when no device accepted it';
-  assert (select count(*) = 1 and bool_and(endpoint like '%/ben-phone') from public.push_subscriptions),
-    'Dead device removed, other device kept';
+  assert (select count(*) = 0 from public.notifications), 'Partners get no listing notifications';
 end;
 $$;
 
--- A third listing: Amy (read) gets a fresh notification; Ben (still unread) is only bumped.
+-- A third listing: Amy has 2 read + 1 unread; Ben has 3 unread notifications.
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
-with posted as (
-  insert into public.listings (category, title) values ('gigs', 'Moving help')
-  returning public_id
-) insert into test_listings select 3, public_id from posted;
-do $$
-begin
-  assert (select count(*) = 1 from private.claim_listing_push(
-    (select public_id from test_listings where n = 3))), 'Only Amy is re-armed and due a push';
-end;
-$$;
-
+insert into public.listings (category, title) values ('gigs', 'Moving help');
 -- A closed listing being inserted (not active) notifies nobody.
 insert into public.listings (category, title, status) values ('sales', 'Old chair', 'closed');
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002', true);
 do $$
 begin
-  assert (select count(*) = 2 from public.notifications where kind = 'listing'),
-    'Amy has her read notification and one new one, nothing for the closed listing';
+  assert (select count(*) = 3 and count(*) filter (where read_at is null) = 1 from public.notifications where kind = 'listing'),
+    'Amy has two read notifications and one new unread one, nothing for the closed listing';
+end;
+$$;
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000003', true);
+do $$
+begin
+  assert (select count(*) = 3 from public.notifications where kind = 'listing'),
+    'Ben has three separate unread notifications for the three active listings';
 end;
 $$;
 
+-- Members cannot run the digest job; only the server login can.
+do $$
+begin
+  begin
+    perform * from private.claim_digests(10);
+    raise exception 'Members must not claim digests';
+  exception when insufficient_privilege then null;
+  end;
+end;
+$$;
+
+-- The digest job (run here as the owner) claims Amy and Ben, not the seller or the partner.
 reset role;
-select 'listing notification tests passed' as result;
+do $$
+declare
+  amy_id uuid;
+begin
+  create temporary table claimed on commit drop as select * from private.claim_digests(100);
+  assert (select count(*) = 2 and bool_and(email in ('hootus-ln-amy@temple.edu', 'hootus-ln-ben@temple.edu'))
+    from claimed), 'Digest goes to the members with new listings';
+  assert (select bool_and(total = 3 and jsonb_array_length(listings) = 3
+    and listings -> 0 ->> 'title' = 'Moving help') from claimed), 'Digest lists the three active listings, newest first';
+  assert (select count(*) = 0 from private.claim_digests(100)), 'A digest is claimed only once';
+
+  -- A failed email puts the window back so the next run retries.
+  select profile_id into amy_id from claimed where email = 'hootus-ln-amy@temple.edu';
+  assert private.revert_digest(amy_id, (select since from claimed where profile_id = amy_id)), 'Digest can be reverted';
+  assert (select count(*) = 1 and min(email) = 'hootus-ln-amy@temple.edu' from private.claim_digests(100)),
+    'A reverted digest is sent again';
+
+  -- Unsubscribed members are skipped.
+  update public.profiles set digest_sent_at = now() - interval '1 second' where public_id = amy_id;
+  assert private.set_email_digest(amy_id, false), 'Unsubscribe finds the member';
+  assert (select count(*) = 0 from private.claim_digests(100)), 'Unsubscribed members get no digest';
+end;
+$$;
+
+-- Followed clubs notify followers on new posts and events, grouped per club & kind.
+do $$
+declare
+  seller_id bigint := (select id from public.profiles where auth_user_id = '50000000-0000-0000-0000-000000000001');
+  amy_pid bigint := (select id from public.profiles where auth_user_id = '50000000-0000-0000-0000-000000000002');
+  v_club_id bigint;
+begin
+  insert into public.clubs (slug, name, handle, mark, color, category, description, meeting, location, leader_id, is_sample)
+  values ('test-notif-club', 'Notif Club', 'notifclub', 'NC', 'plum', 'Arts & culture', 'A test club for notifications.', 'Fri', 'Room 1', seller_id, false)
+  returning id into v_club_id;
+
+  -- Amy follows the club; Ben does not.
+  insert into public.club_follows (club_id, profile_id) values (v_club_id, amy_pid);
+  insert into public.club_posts (club_id, author_id, body) values (v_club_id, seller_id, 'First update');
+  insert into public.club_posts (club_id, author_id, body) values (v_club_id, seller_id, 'Second update');
+  insert into public.club_events (club_id, title, starts_at, ends_at, location, event_type)
+  values (v_club_id, 'Club Meetup', now() + interval '1 day', now() + interval '1 day 2 hours', 'Lobby', 'Meetup');
+
+  assert (select count(*) = 2 from public.notifications where recipient_id = amy_pid and kind = 'club_post'),
+    'Follower gets two separate club_post notifications';
+  assert (select count(*) = 1 from public.notifications where recipient_id = amy_pid and kind = 'club_event'),
+    'Follower gets a club_event notification';
+  assert (select count(*) = 0 from public.notifications where recipient_id = seller_id and kind in ('club_post', 'club_event')),
+    'Club author does not get notified for own posts/events';
+
+  -- Ben requests to join the club -> manager (seller_id) gets club_join_request;
+  -- manager approves -> Ben gets club_join_accepted.
+  insert into public.club_members (club_id, profile_id, role, status)
+  values (v_club_id, (select id from public.profiles where auth_user_id = '50000000-0000-0000-0000-000000000003'), 'member', 'pending');
+  assert (select count(*) = 1 from public.notifications where recipient_id = seller_id and kind = 'club_join_request'),
+    'Club manager gets notified of join request';
+
+  perform set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000001', true);
+  update public.club_members m set status = 'approved'
+  where m.club_id = v_club_id and m.profile_id = (select id from public.profiles where auth_user_id = '50000000-0000-0000-0000-000000000003');
+  assert (select count(*) = 1 from public.notifications
+    where recipient_id = (select id from public.profiles where auth_user_id = '50000000-0000-0000-0000-000000000003')
+      and kind = 'club_join_accepted'),
+    'Requester gets notified when accepted';
+end;
+$$;
+
+select 'listing notification and digest tests passed' as result;
 rollback;
