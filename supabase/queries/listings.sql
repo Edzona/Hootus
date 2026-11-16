@@ -34,3 +34,23 @@ from public.listings
 where author_id = (select private.current_profile_id()) and status = 'sold'
 order by ended_at desc nulls last, id desc
 limit :limit!::int offset :offset!::int;
+
+/* @name GetListingContact */
+select email, seller_name from private.listing_contact_email(:id!::uuid);
+
+/* @name UpdateListing */
+-- Only the author can edit their own active listing.
+update public.listings set
+  category = :category!,
+  title = :title!,
+  description = :description!,
+  price_jpy = :price_jpy,
+  image_urls = :image_urls!,
+  location = :location
+where public_id = :id!::uuid
+  and author_id = (select private.current_profile_id())
+  and status = 'active'
+returning public_id as id, category, title, description,
+price_jpy::double precision as price_jpy, image_urls, location, status,
+created_at, updated_at, private.author_name(author_id) as author_name,
+true as is_mine;

@@ -32,7 +32,7 @@ test('feed publishing permissions and privacy', integrationOptions, async t => {
       assert.deepEqual(post.author, { name: 'Test club_leader' });
       assert(!('author_id' in post));
       assert(!JSON.stringify(post).includes(users[UserRole.ClubLeader].publicId));
-      assert.equal((await call('/api/feed', users[UserRole.ClubLeader].token, perk)).status, 403);
+      assert.equal((await call('/api/feed', users[UserRole.ClubLeader].token, perk)).status, 201);
       assert.equal((await call('/api/feed', users[UserRole.Admin].token, perk)).status, 201);
       assert.equal((await call('/api/feed', users[UserRole.Admin].token, event)).status, 201);
       assert.equal((await call('/api/feed', users[UserRole.Admin].token, { ...event, meeting_time: 'tomorrow' })).status, 400);

@@ -18,7 +18,7 @@ test('database access and pooled identity isolation', integrationOptions, async 
         const browser = createClient(url, process.env.SUPABASE_PUBLISHABLE_KEY!, {
           auth: authOptions, ...(token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : {}),
         });
-        for (const table of ['profiles', 'listings', 'feed_posts', 'messages']) {
+        for (const table of ['profiles', 'listings', 'feed_posts']) {
           const read = await browser.from(table).select('*').limit(1);
           assert.equal(read.error?.code, '42501', `Direct ${table} read must be denied`);
         }

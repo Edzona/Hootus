@@ -10,12 +10,12 @@ import { createIntegrationFixture, integrationOptions, emailedCode, authOptions 
 
 const { call } = createTestApi();
 
-test('email-code requests normalize Temple emails and reject redirects and extra fields', () => {
+test('email-code requests normalize emails and reject non-Temple signups, redirects, and extra fields', () => {
   assert.equal(signinSchema.parse({ email: ' Student@Temple.edu ' }).email, 'student@temple.edu');
-  for (const body of [{ email: 'student@example.com' }, { email: 'student@temple.edu', redirectTo: 'https://evil.example' }]) {
-    assert.equal(signinSchema.safeParse(body).success, false);
-  }
-  assert.equal(signupSchema.safeParse({ email: 'student@temple.edu', name: 'Student', studentId: '012345678' }).success, true);
+  assert.equal(signinSchema.safeParse({ email: 'partner@agency.jp' }).success, true);
+  assert.equal(signinSchema.safeParse({ email: 'student@temple.edu', redirectTo: 'https://evil.example' }).success, false);
+  assert.equal(signupSchema.safeParse({ email: 'student@example.com', name: 'Outsider' }).success, false);
+  assert.equal(signupSchema.safeParse({ email: 'student@temple.edu', name: 'Student' }).success, true);
 });
 
 test('authentication and signup', integrationOptions, async t => {
@@ -35,22 +35,12 @@ test('authentication and signup', integrationOptions, async t => {
       const expired = [header, Buffer.from(JSON.stringify(claims)).toString('base64url'), signature].join('.');
       assert.equal((await call('/api/profile/me', expired)).status, 401);
     });
-    await t.test('signup handles existing emails and duplicate student IDs without echoing account details', async () => {
-      const studentId = String(Math.floor(Math.random() * 900000000) + 100000000);
-      await owner`update public.profiles set student_id = ${studentId} where auth_user_id = ${users[UserRole.Student].id}`;
+    await t.test('signup handles existing emails without echoing account details', async () => {
       // Auth rate-limits repeat requests per email, so send one request for it.
       const existing = await call('/api/auth/signup', undefined, {
         email: users[UserRole.Student].email.toUpperCase(), name: 'Another student',
-        studentId: '900000002',
       });
       assert.equal(existing.status, 202, JSON.stringify(existing.body));
-      const duplicate = await call('/api/auth/signup', undefined, {
-        email: `duplicate-${randomUUID()}@temple.edu`, name: 'Duplicate test',
-        studentId,
-      });
-      assert.equal(duplicate.status, 502);
-      assert.equal(duplicate.body.error.code, ErrorCode.AuthRequestFailed);
-      assert(!JSON.stringify(duplicate.body).includes(users[UserRole.Student].email));
     });
     await t.test('sign-in keeps account existence private and does not create unknown users', async () => {
       const email = `missing-${randomUUID()}@temple.edu`;
@@ -68,7 +58,7 @@ test('authentication and signup', integrationOptions, async t => {
     await t.test('signup creates a profile and verifies a one-time email code', async () => {
       const email = `signup-${randomUUID()}@temple.edu`;
       const body = {
-        email, name: 'Signup test', studentId: String(Math.floor(Math.random() * 900000000) + 100000000),
+        email, name: 'Signup test',
       };
       assert.equal((await call('/api/auth/signup', undefined, { ...body, redirectTo: 'https://evil.example' })).status, 400);
       const result = await call('/api/auth/signup', undefined, body);

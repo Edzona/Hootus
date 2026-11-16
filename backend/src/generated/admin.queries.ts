@@ -221,3 +221,127 @@ const deleteFeedPostIR: any = {"usedParamSet":{"id":true},"params":[{"name":"id"
 export const deleteFeedPost = new PreparedQuery<IDeleteFeedPostParams,IDeleteFeedPostResult>(deleteFeedPostIR);
 
 
+/** 'GetClubRequests' parameters type */
+export interface IGetClubRequestsParams {
+  limit: number;
+  offset: number;
+}
+
+/** 'GetClubRequests' return type */
+export interface IGetClubRequestsResult {
+  category: string;
+  created_at: Date;
+  description: string;
+  handle: string;
+  id: string;
+  location: string;
+  meeting: string;
+  name: string;
+  requester_name: string | null;
+  review_note: string | null;
+  reviewed_at: Date | null;
+  status: string;
+  verification_note: string;
+}
+
+/** 'GetClubRequests' query type */
+export interface IGetClubRequestsQuery {
+  params: IGetClubRequestsParams;
+  result: IGetClubRequestsResult;
+}
+
+const getClubRequestsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":338,"b":344}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":358,"b":365}]}],"statement":"select r.public_id as id, r.name, r.handle, r.category, r.description, r.meeting, r.location,\n  r.verification_note, r.status, r.review_note, r.created_at, r.reviewed_at,\n  private.author_name(r.requester_id) as requester_name\nfrom public.club_requests r\norder by case when r.status = 'pending' then 0 else 1 end, r.created_at desc\nlimit :limit!::int offset :offset!::int"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select r.public_id as id, r.name, r.handle, r.category, r.description, r.meeting, r.location,
+ *   r.verification_note, r.status, r.review_note, r.created_at, r.reviewed_at,
+ *   private.author_name(r.requester_id) as requester_name
+ * from public.club_requests r
+ * order by case when r.status = 'pending' then 0 else 1 end, r.created_at desc
+ * limit :limit!::int offset :offset!::int
+ * ```
+ */
+export const getClubRequests = new PreparedQuery<IGetClubRequestsParams,IGetClubRequestsResult>(getClubRequestsIR);
+
+
+/** 'ReviewClubRequest' parameters type */
+export interface IReviewClubRequestParams {
+  decision: string;
+  id: string;
+  note?: string | null | void;
+}
+
+/** 'ReviewClubRequest' return type */
+export interface IReviewClubRequestResult {
+  category: string | null;
+  handle: string | null;
+  id: string | null;
+  name: string | null;
+  review_note: string | null;
+  reviewed_at: Date | null;
+  status: string | null;
+}
+
+/** 'ReviewClubRequest' query type */
+export interface IReviewClubRequestQuery {
+  params: IReviewClubRequestParams;
+  result: IReviewClubRequestResult;
+}
+
+const reviewClubRequestIR: any = {"usedParamSet":{"id":true,"decision":true,"note":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":101,"b":104}]},{"name":"decision","required":true,"transform":{"type":"scalar"},"locs":[{"a":113,"b":122}]},{"name":"note","required":false,"transform":{"type":"scalar"},"locs":[{"a":131,"b":135}]}],"statement":"select id, name, handle, category, status, review_note, reviewed_at\nfrom private.review_club_request(:id!::uuid, :decision!::text, :note::text)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select id, name, handle, category, status, review_note, reviewed_at
+ * from private.review_club_request(:id!::uuid, :decision!::text, :note::text)
+ * ```
+ */
+export const reviewClubRequest = new PreparedQuery<IReviewClubRequestParams,IReviewClubRequestResult>(reviewClubRequestIR);
+
+
+/** 'CreatePartnerAccount' parameters type */
+export interface ICreatePartnerAccountParams {
+  category: string;
+  contactName: string;
+  description: string;
+  email: string;
+  handle: string;
+  hours: string;
+  location: string;
+  orgName: string;
+}
+
+/** 'CreatePartnerAccount' return type */
+export interface ICreatePartnerAccountResult {
+  category: string | null;
+  club_id: string | null;
+  email: string | null;
+  handle: string | null;
+  org_name: string | null;
+  profile_id: string | null;
+}
+
+/** 'CreatePartnerAccount' query type */
+export interface ICreatePartnerAccountQuery {
+  params: ICreatePartnerAccountParams;
+  result: ICreatePartnerAccountResult;
+}
+
+const createPartnerAccountIR: any = {"usedParamSet":{"email":true,"contactName":true,"orgName":true,"handle":true,"category":true,"description":true,"hours":true,"location":true},"params":[{"name":"email","required":true,"transform":{"type":"scalar"},"locs":[{"a":117,"b":123}]},{"name":"contactName","required":true,"transform":{"type":"scalar"},"locs":[{"a":132,"b":144}]},{"name":"orgName","required":true,"transform":{"type":"scalar"},"locs":[{"a":153,"b":161}]},{"name":"handle","required":true,"transform":{"type":"scalar"},"locs":[{"a":170,"b":177}]},{"name":"category","required":true,"transform":{"type":"scalar"},"locs":[{"a":188,"b":197}]},{"name":"description","required":true,"transform":{"type":"scalar"},"locs":[{"a":206,"b":218}]},{"name":"hours","required":true,"transform":{"type":"scalar"},"locs":[{"a":227,"b":233}]},{"name":"location","required":true,"transform":{"type":"scalar"},"locs":[{"a":242,"b":251}]}],"statement":"select profile_id, club_id, email, org_name_out as org_name, handle, category\nfrom private.create_partner_account(\n  :email!::text, :contactName!::text, :orgName!::text, :handle!::text,\n  :category!::text, :description!::text, :hours!::text, :location!::text\n)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select profile_id, club_id, email, org_name_out as org_name, handle, category
+ * from private.create_partner_account(
+ *   :email!::text, :contactName!::text, :orgName!::text, :handle!::text,
+ *   :category!::text, :description!::text, :hours!::text, :location!::text
+ * )
+ * ```
+ */
+export const createPartnerAccount = new PreparedQuery<ICreatePartnerAccountParams,ICreatePartnerAccountResult>(createPartnerAccountIR);
+
+

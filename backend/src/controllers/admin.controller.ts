@@ -3,9 +3,11 @@ import { z } from 'zod';
 import * as q from '../generated/admin.queries.js';
 import { assertAuthenticated } from '../helpers/auth.js';
 import { withAuthor } from '../helpers/authors.js';
-import { HttpError } from '../helpers/errors.js';
-import { pageSchema } from '../helpers/validation.js';
-import { ListingStatus, UserRole } from '../types/domain.js';
+import { HttpError, notFound } from '../helpers/errors.js';
+import {
+  orgDescriptionSchema, orgHandleSchema, orgNameSchema, orgTextSchema, pageSchema,
+} from '../helpers/validation.js';
+import { ListingStatus, PartnerCategory, ReviewStatus, UserRole } from '../types/domain.js';
 import { ErrorCode } from '../types/errorCode.js';
 
 const hasChange = (body: object) => Object.keys(body).length > 0;
@@ -74,4 +76,44 @@ export const deleteFeedPost: RequestHandler = async (req, res) => {
   const [deleted] = await req.db(tx => q.deleteFeedPost.run({ id }, tx));
   if (!deleted) throw postNotFound();
   res.json({ data: deleted });
+};
+
+export const reviewClubRequestBody = z.strictObject({
+  decision: z.enum([ReviewStatus.Approved, ReviewStatus.Rejected]),
+  note: z.string().trim().max(500).optional(),
+});
+
+export const getClubRequests: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const page = res.locals.query as z.infer<typeof pageSchema>;
+  const data = await req.db(tx => q.getClubRequests.run(page, tx));
+  res.json({ data });
+};
+
+export const reviewClubRequest: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof adminIdParams>;
+  const { decision, note } = res.locals.body as z.infer<typeof reviewClubRequestBody>;
+  const [updated] = await req.db(tx => q.reviewClubRequest.run({ id, decision, note: note ?? null }, tx));
+  if (!updated) throw notFound('Pending club request not found.');
+  res.json({ data: updated });
+};
+
+export const createPartnerBody = z.strictObject({
+  email: z.string().trim().toLowerCase().pipe(z.email()),
+  contactName: z.string().trim().min(1).max(150),
+  orgName: orgNameSchema,
+  handle: orgHandleSchema,
+  category: z.enum(PartnerCategory),
+  description: orgDescriptionSchema,
+  hours: orgTextSchema,
+  location: orgTextSchema,
+});
+
+// A duplicate email surfaces as a 409 through the shared database error mapping.
+export const createPartner: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const body = res.locals.body as z.infer<typeof createPartnerBody>;
+  const [created] = await req.db(tx => q.createPartnerAccount.run(body, tx));
+  res.status(201).json({ data: created });
 };

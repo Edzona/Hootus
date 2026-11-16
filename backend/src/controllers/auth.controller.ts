@@ -4,11 +4,14 @@ import { z } from 'zod';
 import { createPublicClient } from '../config/supabase.js';
 import { HttpError } from '../helpers/errors.js';
 
-const email = z.string().trim().toLowerCase().pipe(z.email().regex(/^[a-z0-9._%+-]+@temple\.edu$/));
-export const signinSchema = z.strictObject({ email });
-export const signupSchema = signinSchema.extend({
+const templeEmail = z.string().trim().toLowerCase().pipe(z.email().regex(/^[a-z0-9._%+-]+@temple\.edu$/));
+const anyEmail = z.string().trim().toLowerCase().pipe(z.email());
+// Sign-in uses shouldCreateUser: false, so admin-created partner accounts with
+// external emails can sign in while unknown non-Temple emails are ignored.
+export const signinSchema = z.strictObject({ email: anyEmail });
+export const signupSchema = z.strictObject({
+  email: templeEmail,
   name: z.string().trim().min(1).max(150),
-  studentId: z.string().regex(/^\d{9}$/),
 });
 
 function authError(error: { status?: number; code?: string }): never {
@@ -24,11 +27,10 @@ export const signup: RequestHandler = async (_req, res) => {
   const { error } = await createPublicClient().auth.signInWithOtp({
     email: body.email,
     options: {
-      data: { full_name: body.name, student_id: body.studentId },
+      data: { full_name: body.name },
     },
   });
-  // Existing emails receive a normal sign-in code. Unique constraints reject
-  // duplicate student IDs; never include account details in the error response.
+  // Existing emails receive a normal sign-in code; never include account details in the error response.
   if (error) authError(error);
   res.status(202).json({ data: { message: 'Check your Temple email for a sign-in code.' } });
 };

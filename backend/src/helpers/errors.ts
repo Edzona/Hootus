@@ -6,6 +6,9 @@ export class HttpError extends Error {
   }
 }
 
+export const notFound = (message: string) => new HttpError(404, ErrorCode.NotFound, message);
+export const forbidden = (message: string) => new HttpError(403, ErrorCode.Forbidden, message);
+
 export function databaseError(error: { code: string }): never {
   if (error.code === '42501') throw new HttpError(403, ErrorCode.Forbidden, 'This operation is not allowed.');
   if (error.code === '23505') throw new HttpError(409, ErrorCode.Conflict, 'This record already exists.');

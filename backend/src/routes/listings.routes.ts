@@ -2,7 +2,7 @@ import { pageSchema } from '../helpers/validation.js';
 import { Router } from 'express';
 import { validate } from '../middleware/validate.js';
 import {
-  createListing, getListings, listingSchema, setListingStatus, listingStatusParams, listingStatusBody, getMySoldListings,
+  createListing, getListings, updateListing, listingSchema, setListingStatus, listingStatusParams, listingStatusBody, getMySoldListings, getListingContact,
 } from '../controllers/listings.controller.js';
 
 export const listingsRoutes = Router();
@@ -10,4 +10,6 @@ export const listingsRoutes = Router();
 listingsRoutes.get('/', validate(pageSchema, 'query'), getListings);
 listingsRoutes.post('/', validate(listingSchema), createListing);
 listingsRoutes.get('/mine/sold', validate(pageSchema, 'query'), getMySoldListings);
+listingsRoutes.get('/:id/contact', validate(listingStatusParams, 'params'), getListingContact);
+listingsRoutes.patch('/:id', validate(listingStatusParams, 'params'), validate(listingSchema), updateListing);
 listingsRoutes.patch('/:id/status', validate(listingStatusParams, 'params'), validate(listingStatusBody), setListingStatus);
