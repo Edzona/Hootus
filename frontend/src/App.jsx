@@ -12,6 +12,7 @@ import Footer from './components/Footer'
 import AccountStatus from './components/AccountStatus'
 import Profile from './components/Profile'
 import Campus from './components/campus/Campus'
+import BetaListings from './components/BetaListings'
 import HubNav from './components/HubNav'
 import Marketplace from './components/Marketplace'
 import RealEstate from './components/RealEstate'
@@ -38,6 +39,7 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  if (import.meta.env.DEV && hash.startsWith('#/beta/listings')) return <BetaListings />
   if (hash.startsWith('#/profile')) return <Profile />
 
   if (hash.startsWith('#/marketplace')) return <><HubNav hash={hash} /><Marketplace /></>
