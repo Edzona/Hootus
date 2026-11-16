@@ -12,6 +12,7 @@ const formatDate = value => new Date(value).toLocaleDateString('en-US', { month:
 
 export default function Admin() {
   const [state, setState] = useState({ loading: true, error: '', allowed: false })
+  const [meId, setMeId] = useState(null)
   const [data, setData] = useState({ users: [], listings: [], feed: [] })
   const [more, setMore] = useState({ users: false, listings: false, feed: false })
   const [tab, setTab] = useState('users')
@@ -26,6 +27,7 @@ export default function Admin() {
     apiRequest('/profile/me', { signal })
       .then(async profile => {
         if (profile.role !== 'admin') return setState({ loading: false, error: '', allowed: false })
+        setMeId(profile.id)
         const [users, listings, feed] = await Promise.all(tabs.map(([list]) => fetchPage(list, 0, signal)))
         setData({ users, listings, feed })
         setMore({ users: users.length === PAGE, listings: listings.length === PAGE, feed: feed.length === PAGE })
@@ -61,6 +63,12 @@ export default function Admin() {
 
   const replace = (list, item) => setData(current => ({ ...current, [list]: current[list].map(row => row.id === item.id ? item : row) }))
   const remove = (list, id) => setData(current => ({ ...current, [list]: current[list].filter(row => row.id !== id) }))
+
+  function setUserRole(user, role) {
+    if (!window.confirm(`Change ${user.full_name || 'this member'} to ${roles[role]}?`)) return
+    run(user.id, () => apiRequest(`/admin/users/${user.id}`, { method: 'PATCH', body: { role } }),
+      updated => replace('users', updated))
+  }
 
   function setListingStatus(listing, status) {
     run(listing.id, () => apiRequest(`/admin/listings/${listing.id}`, { method: 'PATCH', body: { status } }),
@@ -121,7 +129,18 @@ export default function Admin() {
                       <p className="break-words font-display text-xl font-extrabold">{user.full_name || 'Unnamed member'}</p>
                       <p className="font-mono text-xs uppercase text-ink/60">Joined {formatDate(user.created_at)}</p>
                     </div>
-                    <span className="border-2 border-ink bg-sky px-3 py-1 font-mono text-xs uppercase">{roles[user.role] || user.role}</span>
+                    {user.id === meId ? (
+                      <span className="border-2 border-ink bg-sky px-3 py-1 font-mono text-xs uppercase">{roles[user.role]} · You</span>
+                    ) : (
+                      <label className="font-mono text-xs uppercase">
+                        <span className="sr-only">Role for {user.full_name || 'member'}</span>
+                        <select value={user.role} disabled={busy === user.id}
+                          onChange={event => setUserRole(user, event.target.value)}
+                          className="border-2 border-ink bg-sky px-2 py-1">
+                          {Object.entries(roles).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        </select>
+                      </label>
+                    )}
                   </>
                 )} />}
                 {tab === 'listings' && <Rows items={data.listings} empty="No listings to review." render={listing => (

@@ -23,8 +23,8 @@ hosted Supabase email-template settings.
 - `/#/dashboard`: club posts, marketplace finds, and housing suggestions.
 - `/#/activity` and `/#/saved`: the signed-in student's RSVPs and saved posts.
 - `/#/friends`: introduction for the future friends feature.
-- `/#/admin`: admin-only desk for listing members and moderating or deleting
-  listings and feed posts. Linked from the profile for admins; others see an
+- `/#/admin`: admin-only desk for listing members, changing other members'
+  roles, and moderating or deleting listings and feed posts. Linked from the profile for admins; others see an
   admins-only notice, and the API enforces the role.
 
 The landing page's **Clubs & Orgs** link opens the campus. All campus data goes
