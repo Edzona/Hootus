@@ -28,10 +28,11 @@
 .campus-error { padding: 15px 28px; color: #882335; background: #fff1f3; font-size: 12px; }
 .campus-error button { margin-left: 10px; text-decoration: underline; }
 .campus-app button, .campus-app a, .campus-app input, .campus-app summary { -webkit-tap-highlight-color: transparent; }
-.campus-app :is(button, a, input, summary, [tabindex]):focus-visible { outline: 2px solid var(--campus-red); outline-offset: 4px; }
+.campus-app :is(button, a, input, summary, [tabindex]:not(.campus-main)):focus-visible { outline: 2px solid var(--campus-red); outline-offset: 4px; }
 .campus-app h1, .campus-app h2, .campus-app h3, .campus-app p { margin: 0; }
 .campus-app svg { flex-shrink: 0; }
 .campus-shell { display: grid; grid-template-columns: 218px minmax(0, 620px) 310px; max-width: 1220px; margin: 0 auto; padding: 0 20px; align-items: start; }
+.campus-shell.is-partner { grid-template-columns: 218px minmax(0, 1fr); max-width: 1280px; }
 .campus-sidebar { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; padding: 31px 24px 16px 0; }
 .campus-brand { display: block; margin: 0 0 43px 13px; width: fit-content; }
 .campus-brand > span:last-child { display: block; font-size: 11px; margin-top: 8px; color: var(--campus-muted); padding-left: 47px; }
@@ -50,7 +51,7 @@
 .campus-user > svg { margin-left: auto; }
 .back-to-site { display: flex; align-items: center; gap: 5px; margin: 4px 0 0 55px; font-size: 10px; color: var(--campus-muted) !important; }
 .campus-main { border-inline: 1px solid var(--campus-line); min-width: 0; min-height: 100vh; padding-bottom: 30px; }
-.campus-main:focus { outline: none; }
+.campus-main:focus, .campus-main:focus-visible { outline: none; }
 .campus-header { height: 75px; position: sticky; top: 0; z-index: 20; background: #fffffff5; backdrop-filter: blur(14px); border-bottom: 1px solid var(--campus-line); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; gap: 12px; }
 .campus-header > div { display: flex; align-items: center; gap: 12px; min-width: 0; font-weight: 700; font-size: 16px; }
 .campus-header > div > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -207,7 +208,7 @@
 .club-profile-info { padding: 0 28px 25px; }
 .club-profile-top { display: flex; align-items: center; justify-content: space-between; margin: -27px 0 18px; position: relative; gap: 12px; }
 .avatar-large { width: 77px; height: 77px; font-size: 42px; border: 5px solid #fff; border-radius: 20px; }
-.club-profile-top .campus-button { margin-top: 35px; }
+.club-profile-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 35px; }
 .club-profile-info h1 { margin-top: 6px; font-size: 30px; line-height: 1.2; font-weight: 700; letter-spacing: -1px; }
 .club-profile-info .post-handle { font-size: 12px; margin-top: 4px; }
 .profile-description { font-size: 13px; line-height: 1.8; margin: 18px 0 !important; max-width: 440px; }
@@ -260,6 +261,7 @@
 .campus-listing > p { padding: 0 15px 17px; color: var(--campus-muted); font-size: 12px; }
 @media (min-width: 1500px) {
   .campus-shell { max-width: 1360px; grid-template-columns: 238px minmax(0, 700px) 342px; }
+  .campus-shell.is-partner { grid-template-columns: 238px minmax(0, 1fr); }
   .campus-poster { height: 310px; }
   .campus-post .post-text { font-size: 14px; }
   .post-author { font-size: 14px; }
@@ -271,6 +273,7 @@
 }
 @media (max-width: 1100px) {
   .campus-shell { grid-template-columns: 190px minmax(0, 1fr) 270px; padding: 0 15px; }
+  .campus-shell.is-partner { grid-template-columns: 190px minmax(0, 1fr); }
   .campus-sidebar { padding-right: 15px; }
   .campus-nav > a { gap: 11px; font-size: 13px; padding: 12px; }
   .campus-right { padding-left: 20px; }

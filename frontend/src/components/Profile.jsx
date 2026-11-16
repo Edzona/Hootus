@@ -6,14 +6,15 @@ import ProfileEditor from './ProfileEditor'
 import ProfilePhoto from './ProfilePhoto'
 import SoldHistory from './SoldHistory'
 
-const roles = { student: 'Student', club_leader: 'Club leader', admin: 'Admin' }
+const roles = { student: 'Student', club_leader: 'Club leader', partner: 'Partner', admin: 'Admin' }
 
-export default function Profile() {
+export default function Profile({ embedded = false, onProfileChange }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [userId, setUserId] = useState(undefined)
+  const [section, setSection] = useState('about')
 
   useEffect(() => {
     if (!supabase) { window.location.hash = '/signup'; return }
@@ -40,14 +41,85 @@ export default function Profile() {
     return () => controller.abort()
   }, [attempt, userId])
 
-  async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) setError(error.message)
-    else window.location.hash = '/signup'
+  function handleSaved(next) {
+    setProfile(next)
+    onProfileChange?.(next)
   }
 
   const initials = (profile?.full_name || 'TUJ Student').split(/\s+/)
     .filter(part => /^[\p{L}\p{N}]/u.test(part)).slice(0, 2).map(part => part[0]).join('')
+
+  const content = (
+    <div className="space-y-5 px-5 py-5">
+      {loading ? <p role="status" className="p-4 font-mono text-sm text-ink/60">Loading your profile…</p>
+        : error ? (
+          <div role="alert" className="rounded-2xl border border-[#ebe7e4] bg-white p-6">
+            <p>{error}</p>
+            <button className="mt-4 mr-6 underline" onClick={() => setAttempt(attempt + 1)}>Try again</button>
+            <a href="#/signup" className="underline">Go to sign in</a>
+          </div>
+        ) : profile && (
+          <>
+            <section className="overflow-hidden rounded-2xl border border-[#ebe7e4] bg-white">
+              <div className="flex h-24 items-start justify-between bg-gradient-to-r from-[#f8f3f4] via-[#fdf7ea] to-[#f4f7f5] px-5 py-3">
+                <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-ink/50">TUJ · TOKYO</span>
+                {profile.role === 'admin' && (
+                  <a href="#/admin" className="rounded-full border border-[#ebe7e4] bg-white px-3 py-1 font-mono text-xs text-ink hover:border-ink/40">
+                    Admin desk →
+                  </a>
+                )}
+              </div>
+              <div className="px-6 pb-6 pt-5">
+                <div className="flex flex-wrap items-center gap-5">
+                  <div className="shrink-0">
+                    <ProfilePhoto profile={profile} initials={initials} onSaved={handleSaved} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h1 className="break-words font-display text-2xl font-bold tracking-tight text-ink">
+                        {profile.full_name || 'TUJ Student'}
+                      </h1>
+                      <span className="rounded-full bg-[#f5f2ef] px-2.5 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wider text-ink/70">
+                        {roles[profile.role] || profile.role}
+                      </span>
+                    </div>
+                    <p className="mt-1 font-mono text-xs text-ink/55">
+                      {profile.email} · Joined {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </p>
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink/80">
+                      {profile.bio || 'No bio yet — add one below.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div className="feed-tabs" role="tablist" aria-label="Profile sections">
+              {[['about', 'About & Edit'], ['sold', 'Sold History']].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={section === id}
+                  className={section === id ? 'active' : ''}
+                  onClick={() => setSection(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {section === 'about' ? (
+              <ProfileEditor profile={profile} onSaved={handleSaved} />
+            ) : (
+              <SoldHistory />
+            )}
+          </>
+        )}
+    </div>
+  )
+
+  if (embedded) return content
 
   return (
     <div className="grain min-h-screen bg-paper">
@@ -57,64 +129,8 @@ export default function Profile() {
           <a href="#/dashboard" className="link-underline font-mono text-xs uppercase tracking-widest">← Back to campus</a>
         </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-5 py-12 md:px-8 md:py-20">
-        <p className="eyebrow text-cherry">Your corner of campus</p>
-        <h1 className="mt-4 font-display text-6xl font-extrabold tracking-tight md:text-8xl">
-          My <span className="font-serif font-normal italic text-cherry">profile.</span>
-        </h1>
-        <p className="mt-5 max-w-xl text-lg text-ink/70">A familiar face in the flock. Your details, all in one place.</p>
-
-        {loading ? <p role="status" className="mt-10 font-mono">Loading your profile…</p>
-          : error ? (
-            <div role="alert" className="mt-10 border-2 border-ink bg-white p-6 shadow-hard">
-              <p>{error}</p>
-              <button className="mt-4 mr-6 underline" onClick={() => setAttempt(attempt + 1)}>Try again</button>
-              <a href="#/signup" className="underline">Go to sign in</a>
-            </div>
-          ) : profile && (
-            <div className="mt-12 grid gap-8 md:grid-cols-[0.8fr_1.2fr]">
-              <section className="border-2 border-ink bg-white shadow-hard">
-                <div className="flex items-center justify-between border-b-2 border-ink bg-sun px-6 py-3">
-                  <span className="eyebrow">Campus card</span>
-                  <span className="font-mono text-xs">TUJ / TOKYO</span>
-                </div>
-                <div className="p-8">
-                  <ProfilePhoto profile={profile} initials={initials} onSaved={setProfile} />
-                  <h2 className="mt-6 break-words font-display text-3xl font-extrabold">{profile.full_name || 'TUJ Student'}</h2>
-                  <span className="mt-3 inline-block border-2 border-ink bg-sky px-3 py-1 font-mono text-xs uppercase">
-                    {roles[profile.role] || profile.role}
-                  </span>
-                  <p className="mt-6 whitespace-pre-wrap text-ink/70">{profile.bio || 'Your campus story is just getting started.'}</p>
-                  <p className="mt-8 border-t-2 border-ink pt-4 font-mono text-xs uppercase tracking-wider">Temple email confirmed ✓</p>
-                </div>
-              </section>
-              <section className="border-2 border-ink bg-white p-6 shadow-hard md:p-8">
-                <p className="eyebrow">01 / Account details</p>
-                <dl className="mt-6">
-                  {[
-                    ['Full name', profile.full_name || 'Not added'],
-                    ['Temple email', profile.email],
-                    ['Student ID', profile.student_id || 'Not added'],
-                    ['Member since', new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })],
-                  ].map(([label, value]) => (
-                    <div key={label} className="border-b border-ink/20 py-5">
-                      <dt className="eyebrow text-ink/60">{label}</dt>
-                      <dd className="mt-2 break-words text-lg">{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="mt-5 text-sm text-ink/60">Your email and student ID are private account details.</p>
-                {profile.role === 'admin' && (
-                  <a href="#/admin" className="mt-8 mr-4 inline-block border-2 border-ink bg-sun px-4 py-2 font-mono text-xs uppercase tracking-widest">
-                    Admin desk →
-                  </a>
-                )}
-                <button className="btn-primary mt-8" onClick={signOut}>Sign out →</button>
-              </section>
-              <ProfileEditor profile={profile} onSaved={setProfile} />
-              <SoldHistory />
-            </div>
-          )}
+      <main className="mx-auto max-w-4xl px-5 py-12 md:px-8">
+        {content}
       </main>
     </div>
   )

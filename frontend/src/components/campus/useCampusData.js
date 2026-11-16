@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../../lib/api'
+import { formatPrice } from '../../lib/format'
 import { supabase } from '../../lib/supabase'
 import { CampusAction } from '../../../../backend/src/types/campusAction'
 
@@ -33,7 +34,7 @@ function normalize(data) {
     listings: data.listings.map(listing => ({
       ...listing, kind: listing.category === 'housing' ? 'housing' : 'market',
       label: listing.category === 'housing' ? 'Housing' : 'Marketplace',
-      price: listing.priceJpy === null ? 'Ask for price' : `${new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(listing.priceJpy)}${listing.category === 'housing' ? ' / month' : ''}`,
+      price: formatPrice(listing.priceJpy, listing.category),
       detail: listing.description, color: listing.category === 'housing' ? 'forest' : 'gold',
     })),
   }
