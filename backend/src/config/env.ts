@@ -14,7 +14,20 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:5173')
     .transform(value => value.split(',').map(origin => origin.trim()))
     .pipe(z.array(z.url()).min(1)),
-});
+  // Where clicking a notification opens Hootus. Update when the real inbox route exists.
+  NOTIFICATION_LINK_URL: z.url().default('http://localhost:5173/#/beta/listings'),
+  // Browser push. Generate once with `npx web-push generate-vapid-keys`.
+  // Leave all three empty to disable push. The private key is a secret.
+  VAPID_PUBLIC_KEY: z.preprocess(value => value === '' ? undefined : value,
+    z.string().regex(/^[A-Za-z0-9_-]{80,100}$/).optional()),
+  VAPID_PRIVATE_KEY: z.preprocess(value => value === '' ? undefined : value,
+    z.string().regex(/^[A-Za-z0-9_-]{40,50}$/).optional()),
+  // Push services may contact this address about problems with your pushes.
+  VAPID_SUBJECT: z.preprocess(value => value === '' ? undefined : value,
+    z.string().regex(/^(mailto:|https:\/\/)/).optional()),
+}).refine(value => (!value.VAPID_PUBLIC_KEY && !value.VAPID_PRIVATE_KEY)
+  || (value.VAPID_PUBLIC_KEY && value.VAPID_PRIVATE_KEY && value.VAPID_SUBJECT),
+{ path: ['VAPID_PUBLIC_KEY'], message: 'Set both VAPID keys and VAPID_SUBJECT, or neither key' });
 
 const result = schema.safeParse(process.env);
 if (!result.success) {

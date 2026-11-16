@@ -6,6 +6,7 @@ export enum ErrorCode {
   BodyTooLarge = 'BODY_TOO_LARGE',
   Conflict = 'CONFLICT',
   DatabaseError = 'DATABASE_ERROR',
+  FeatureDisabled = 'FEATURE_DISABLED',
   Forbidden = 'FORBIDDEN',
   InternalError = 'INTERNAL_ERROR',
   InvalidData = 'INVALID_DATA',
