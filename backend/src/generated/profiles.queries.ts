@@ -44,10 +44,10 @@ export interface IGetMyProfileResult {
   bio: string | null;
   created_at: Date;
   email: string;
+  email_digest: boolean;
   full_name: string | null;
   id: string;
   role: string;
-  student_id: string | null;
   updated_at: Date;
 }
 
@@ -57,13 +57,13 @@ export interface IGetMyProfileQuery {
   result: IGetMyProfileResult;
 }
 
-const getMyProfileIR: any = {"usedParamSet":{"publicId":true},"params":[{"name":"publicId","required":true,"transform":{"type":"scalar"},"locs":[{"a":139,"b":148}]}],"statement":"select public_id as id, email, student_id, full_name, avatar_url, bio,\nrole, created_at, updated_at\nfrom public.profiles where public_id = :publicId!"};
+const getMyProfileIR: any = {"usedParamSet":{"publicId":true},"params":[{"name":"publicId","required":true,"transform":{"type":"scalar"},"locs":[{"a":141,"b":150}]}],"statement":"select public_id as id, email, full_name, avatar_url, bio,\nrole, email_digest, created_at, updated_at\nfrom public.profiles where public_id = :publicId!"};
 
 /**
  * Query generated from SQL:
  * ```
- * select public_id as id, email, student_id, full_name, avatar_url, bio,
- * role, created_at, updated_at
+ * select public_id as id, email, full_name, avatar_url, bio,
+ * role, email_digest, created_at, updated_at
  * from public.profiles where public_id = :publicId!
  * ```
  */
@@ -88,7 +88,6 @@ export interface IUpdateMyProfileResult {
   full_name: string | null;
   id: string;
   role: string;
-  student_id: string | null;
   updated_at: Date;
 }
 
@@ -98,7 +97,7 @@ export interface IUpdateMyProfileQuery {
   result: IUpdateMyProfileResult;
 }
 
-const updateMyProfileIR: any = {"usedParamSet":{"setBio":true,"bio":true,"setAvatar":true,"avatarUrl":true,"publicId":true},"params":[{"name":"setBio","required":true,"transform":{"type":"scalar"},"locs":[{"a":45,"b":52}]},{"name":"bio","required":false,"transform":{"type":"scalar"},"locs":[{"a":68,"b":71}]},{"name":"setAvatar","required":true,"transform":{"type":"scalar"},"locs":[{"a":118,"b":128}]},{"name":"avatarUrl","required":false,"transform":{"type":"scalar"},"locs":[{"a":144,"b":153}]},{"name":"publicId","required":true,"transform":{"type":"scalar"},"locs":[{"a":199,"b":208}]}],"statement":"update public.profiles set\n  bio = case when :setBio!::boolean then :bio::text else bio end,\n  avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end\nwhere public_id = :publicId!\nreturning public_id as id, email, student_id, full_name, avatar_url, bio,\nrole, created_at, updated_at"};
+const updateMyProfileIR: any = {"usedParamSet":{"setBio":true,"bio":true,"setAvatar":true,"avatarUrl":true,"publicId":true},"params":[{"name":"setBio","required":true,"transform":{"type":"scalar"},"locs":[{"a":45,"b":52}]},{"name":"bio","required":false,"transform":{"type":"scalar"},"locs":[{"a":68,"b":71}]},{"name":"setAvatar","required":true,"transform":{"type":"scalar"},"locs":[{"a":118,"b":128}]},{"name":"avatarUrl","required":false,"transform":{"type":"scalar"},"locs":[{"a":144,"b":153}]},{"name":"publicId","required":true,"transform":{"type":"scalar"},"locs":[{"a":199,"b":208}]}],"statement":"update public.profiles set\n  bio = case when :setBio!::boolean then :bio::text else bio end,\n  avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end\nwhere public_id = :publicId!\nreturning public_id as id, email, full_name, avatar_url, bio,\nrole, created_at, updated_at"};
 
 /**
  * Query generated from SQL:
@@ -107,10 +106,40 @@ const updateMyProfileIR: any = {"usedParamSet":{"setBio":true,"bio":true,"setAva
  *   bio = case when :setBio!::boolean then :bio::text else bio end,
  *   avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end
  * where public_id = :publicId!
- * returning public_id as id, email, student_id, full_name, avatar_url, bio,
+ * returning public_id as id, email, full_name, avatar_url, bio,
  * role, created_at, updated_at
  * ```
  */
 export const updateMyProfile = new PreparedQuery<IUpdateMyProfileParams,IUpdateMyProfileResult>(updateMyProfileIR);
+
+
+/** 'SetMyEmailDigest' parameters type */
+export interface ISetMyEmailDigestParams {
+  enabled: boolean;
+  publicId: string;
+}
+
+/** 'SetMyEmailDigest' return type */
+export interface ISetMyEmailDigestResult {
+  email_digest: boolean;
+}
+
+/** 'SetMyEmailDigest' query type */
+export interface ISetMyEmailDigestQuery {
+  params: ISetMyEmailDigestParams;
+  result: ISetMyEmailDigestResult;
+}
+
+const setMyEmailDigestIR: any = {"usedParamSet":{"enabled":true,"publicId":true},"params":[{"name":"enabled","required":true,"transform":{"type":"scalar"},"locs":[{"a":42,"b":50}]},{"name":"publicId","required":true,"transform":{"type":"scalar"},"locs":[{"a":79,"b":88}]}],"statement":"update public.profiles set email_digest = :enabled!::boolean\nwhere public_id = :publicId!\nreturning email_digest"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * update public.profiles set email_digest = :enabled!::boolean
+ * where public_id = :publicId!
+ * returning email_digest
+ * ```
+ */
+export const setMyEmailDigest = new PreparedQuery<ISetMyEmailDigestParams,ISetMyEmailDigestResult>(setMyEmailDigestIR);
 
 

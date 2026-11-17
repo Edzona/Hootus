@@ -16,7 +16,7 @@ export default function FinalCta() {
           <WaitlistForm tone="dark" />
         </div>
         <p className="mt-6 font-mono text-xs uppercase tracking-widest text-paper/60">
-          Already have a student ID?{' '}
+          Already have a Temple email?{' '}
           <a href="#/signup" className="link-underline pb-1 text-sun">
             Create your account →
           </a>

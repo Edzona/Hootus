@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from '../lib/api'
+import { formatShortDate, formatYen } from '../lib/format'
 
 const doneLabel = { sales: 'Sold', housing: 'Rented', gigs: 'Filled' }
-const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' })
 
 export default function SoldHistory() {
   const [items, setItems] = useState(null)
@@ -34,10 +34,10 @@ export default function SoldHistory() {
                   <p className="truncate font-display text-lg font-bold">{item.title}</p>
                   <p className="font-mono text-xs text-ink/60">
                     {doneLabel[item.category] ?? 'Completed'}
-                    {item.ended_at && ` · ${new Date(item.ended_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                    {item.ended_at && ` · ${formatShortDate(item.ended_at)}`}
                   </p>
                 </div>
-                <p className="shrink-0 font-mono text-sm">{item.price_jpy == null ? '—' : yen.format(item.price_jpy)}</p>
+                <p className="shrink-0 font-mono text-sm">{item.price_jpy == null ? '—' : formatYen(item.price_jpy)}</p>
               </li>
             ))}
           </ul>

@@ -1,30 +1,27 @@
 import {
   createListing as insertPost,
   getListings as selectPosts,
+  updateListing as editPost,
   setListingStatus as updateStatus,
   getMySoldListings as selectMySold,
-  ownsListingPhotos,
+  getListingContact as selectContact,
 } from '../generated/listings.queries.js';
 import { markListingNotificationsRead } from '../generated/notifications.queries.js';
 import { withAuthor } from '../helpers/authors.js';
-import { pageSchema } from '../helpers/validation.js';
+import { assertOwnsPhotos, extractPhotoNames, imageUrlsSchema, pageSchema } from '../helpers/validation.js';
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
-import { notifyListingByPush } from '../helpers/push.js';
 import { assertAuthenticated } from '../helpers/auth.js';
 import { listingCategorySchema, ListingStatus } from '../types/domain.js';
 import { HttpError } from '../helpers/errors.js';
 import { ErrorCode } from '../types/errorCode.js';
-import { env } from '../config/env.js';
-
-const listingPhotoName = /^[0-9a-f-]{36}\.(?:jpg|png|webp)$/;
 
 export const listingSchema = z.strictObject({
   category: listingCategorySchema,
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(10000).default(''),
   price_jpy: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
-  image_urls: z.array(z.url().refine(url => /^https?:\/\//.test(url))).max(10).default([]),
+  image_urls: imageUrlsSchema,
   location: z.string().trim().max(300).optional(),
 });
 export const listingStatusParams = z.strictObject({ id: z.uuid() });
@@ -33,27 +30,28 @@ export const listingStatusBody = z.strictObject({
   status: z.enum([ListingStatus.Sold, ListingStatus.Closed]),
 });
 
-const photosNotUploaded = () =>
-  new HttpError(400, ErrorCode.InvalidData, 'Upload your listing photos before posting.');
-
 export const createListing: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const body = res.locals.body as z.infer<typeof listingSchema>;
-  // Photos must be files the caller uploaded to the listing-photos bucket.
-  const bucket = `${env.SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/listing-photos/`;
-  const names = body.image_urls.map(url => url.startsWith(bucket) ? url.slice(bucket.length) : '');
-  if (names.some(name => !listingPhotoName.test(name))) throw photosNotUploaded();
+  const names = extractPhotoNames(body.image_urls);
   const [data] = await req.db(async tx => {
-    if (names.length) {
-      const [photos] = await ownsListingPhotos.run({ names }, tx);
-      if (!photos?.owned) throw photosNotUploaded();
-    }
+    await assertOwnsPhotos(names, tx);
     return insertPost.run({ ...body, authorId: req.user.internalId }, tx);
   });
-  // After commit. Awaited because serverless may stop work left running after
-  // the response; it never throws, so the listing still counts as posted.
-  if (data?.id) await notifyListingByPush(req.db, data.id);
   res.status(201).json({ data: withAuthor(data) });
+};
+
+export const updateListing: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof listingStatusParams>;
+  const body = res.locals.body as z.infer<typeof listingSchema>;
+  const names = extractPhotoNames(body.image_urls);
+  const [data] = await req.db(async tx => {
+    await assertOwnsPhotos(names, tx);
+    return editPost.run({ ...body, id }, tx);
+  });
+  if (!data) throw new HttpError(404, ErrorCode.NotFound, 'That listing is not open, or it is not yours.');
+  res.json({ data: withAuthor(data) });
 };
 
 export const getListings: RequestHandler = async (req, res) => {
@@ -81,4 +79,12 @@ export const setListingStatus: RequestHandler = async (req, res) => {
   const [listing] = await req.db(tx => updateStatus.run({ id, status }, tx));
   if (!listing) throw new HttpError(404, ErrorCode.NotFound, 'That listing is not open, or it is not yours.');
   res.json({ data: listing });
+};
+
+export const getListingContact: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof listingStatusParams>;
+  const [contact] = await req.db(tx => selectContact.run({ id }, tx));
+  if (!contact?.email) throw new HttpError(404, ErrorCode.NotFound, 'That listing is no longer active.');
+  res.json({ data: { email: contact.email, sellerName: contact.seller_name ?? 'TUJ Student' } });
 };

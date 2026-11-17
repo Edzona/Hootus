@@ -17,7 +17,7 @@ insert into auth.users (
   'authenticated', 'authenticated', 'hootus-demo@temple.edu', '',
   now(),
   '{"provider":"email","providers":["email"],"hootus_local_test":true}',
-  '{"full_name":"Hana Tanaka","student_id":"900000001"}',
+  '{"full_name":"Hana Tanaka"}',
   '', '', '', '', now(), now()
 )
 on conflict (id) do nothing;
@@ -107,5 +107,96 @@ on conflict (profile_id,club_id) do nothing;
 insert into public.club_follows (profile_id,club_id)
 select p.id,c.id from public.profiles p cross join public.clubs c where p.auth_user_id='00000000-0000-4000-8000-000000000001' and p.email='hootus-demo@temple.edu' and c.public_id='10000000-0000-4000-8000-000000000002'
 on conflict (profile_id,club_id) do nothing;
+
+-- Local admin account
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, confirmation_token, recovery_token,
+  email_change_token_new, email_change, created_at, updated_at
+) values (
+  '00000000-0000-4000-8000-000000000003',
+  '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+  'hootus-admin@temple.edu', '', now(),
+  '{"provider":"email","providers":["email"],"hootus_local_test":true}',
+  '{"full_name":"Hootus Admin"}', '', '', '', '', now(), now()
+) on conflict (id) do nothing;
+insert into auth.identities (provider_id, user_id, identity_data, provider, created_at, updated_at)
+select id::text, id, jsonb_build_object('sub',id::text,'email',email,'email_verified',true), 'email',now(),now()
+from auth.users where id = '00000000-0000-4000-8000-000000000003'
+  and email = 'hootus-admin@temple.edu' and raw_app_meta_data ->> 'hootus_local_test' = 'true'
+on conflict (provider_id,provider) do nothing;
+update public.profiles set role = 'admin'
+where auth_user_id = '00000000-0000-4000-8000-000000000003'
+  and email = 'hootus-admin@temple.edu'
+  and exists (select 1 from auth.users where id = auth_user_id and raw_app_meta_data ->> 'hootus_local_test' = 'true');
+
+-- Third-party perks / coupons partner account (uses admin role so it can publish perk posts)
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, confirmation_token, recovery_token,
+  email_change_token_new, email_change, created_at, updated_at
+) values (
+  '00000000-0000-4000-8000-000000000004',
+  '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+  'hootus-partner@temple.edu', '', now(),
+  '{"provider":"email","providers":["email"],"hootus_local_test":true}',
+  '{"full_name":"Sangenjaya Perks Partner"}', '', '', '', '', now(), now()
+) on conflict (id) do nothing;
+insert into auth.identities (provider_id, user_id, identity_data, provider, created_at, updated_at)
+select id::text, id, jsonb_build_object('sub',id::text,'email',email,'email_verified',true), 'email',now(),now()
+from auth.users where id = '00000000-0000-4000-8000-000000000004'
+  and email = 'hootus-partner@temple.edu' and raw_app_meta_data ->> 'hootus_local_test' = 'true'
+on conflict (provider_id,provider) do nothing;
+update public.profiles set role = 'admin'
+where auth_user_id = '00000000-0000-4000-8000-000000000004'
+  and email = 'hootus-partner@temple.edu'
+  and exists (select 1 from auth.users where id = auth_user_id and raw_app_meta_data ->> 'hootus_local_test' = 'true');
+
+insert into public.feed_posts (public_id, author_id, kind, title, body, business_name, coupon_code, expires_at)
+select '50000000-0000-4000-8000-000000000001', id, 'perk',
+  '15% off iced matcha & study lattes',
+  'Show your TUJ ID or mention Hootus at the counter between 2pm and 6pm on weekdays.',
+  'Sancha Roastery', 'TUJ15', now() + interval '60 days'
+from public.profiles where auth_user_id = '00000000-0000-4000-8000-000000000004'
+on conflict (public_id) do nothing;
+
+insert into public.feed_posts (public_id, author_id, kind, title, body, business_name, coupon_code, expires_at)
+select '50000000-0000-4000-8000-000000000002', id, 'perk',
+  'Free extra gyoza with any ramen bowl',
+  'Valid for Temple students Monday–Thursday after 5pm, 3 minutes from Sangenjaya Station.',
+  'Menya Sangenjaya', 'HOOTUSGYOZA', now() + interval '45 days'
+from public.profiles where auth_user_id = '00000000-0000-4000-8000-000000000004'
+on conflict (public_id) do nothing;
+
+-- Sample external-email third-party partner (e.g. real estate agent)
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, confirmation_token, recovery_token,
+  email_change_token_new, email_change, created_at, updated_at
+) values (
+  '00000000-0000-4000-8000-000000000005',
+  '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+  'agent@sangenjaya-realty.jp', '', now(),
+  '{"provider":"email","providers":["email"],"hootus_local_test":true,"hootus_partner":true}',
+  '{"full_name":"Kenji Sato"}', '', '', '', '', now(), now()
+) on conflict (id) do nothing;
+insert into auth.identities (provider_id, user_id, identity_data, provider, created_at, updated_at)
+select id::text, id, jsonb_build_object('sub',id::text,'email',email,'email_verified',true), 'email',now(),now()
+from auth.users where id = '00000000-0000-4000-8000-000000000005'
+  and email = 'agent@sangenjaya-realty.jp'
+on conflict (provider_id,provider) do nothing;
+
+insert into public.clubs (public_id, slug, name, handle, mark, color, category, description, meeting, location, leader_id, is_sample, org_type)
+select '10000000-0000-4000-8000-000000000006', 'sanchahousing', 'Sancha Housing Partners', 'sanchahousing', 'SH', 'gold', 'Real estate',
+  'English-friendly apartments and sharehouses within 15 minutes of TUJ.',
+  'Mon–Sat 10:00–18:00', 'Sangenjaya Station North Exit', id, true, 'partner'
+from public.profiles where auth_user_id = '00000000-0000-4000-8000-000000000005'
+on conflict (public_id) do nothing;
+
+insert into public.club_members (club_id, profile_id, role, status)
+select id, leader_id, 'manager', 'approved'
+from public.clubs
+where leader_id is not null
+on conflict (club_id, profile_id) do nothing;
 
 commit;

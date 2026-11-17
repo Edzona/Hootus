@@ -1,23 +1,28 @@
 import { useEffect, useState } from 'react'
 import { Wordmark } from './Logo'
 import { apiRequest } from '../lib/api'
+import { formatShortDate } from '../lib/format'
+import { PartnerCategory, partnerCategories } from '../../../backend/src/types/clubOptions'
 
-const roles = { student: 'Student', club_leader: 'Club leader', admin: 'Admin' }
+const roles = { student: 'Student', club_leader: 'Club leader', partner: 'Partner', admin: 'Admin' }
 const statuses = ['active', 'sold', 'closed']
-const tabs = [['users', 'Users'], ['listings', 'Listings'], ['feed', 'Feed posts']]
-const sources = { users: '/admin/users', listings: '/listings', feed: '/feed' }
+const tabs = [['users', 'Users'], ['clubRequests', 'Club requests'], ['partners', 'Partners'], ['listings', 'Listings'], ['feed', 'Feed posts']]
+const sources = { users: '/admin/users', clubRequests: '/admin/club-requests', listings: '/listings', feed: '/feed' }
 const PAGE = 100
 const fetchPage = (list, offset, signal) => apiRequest(`${sources[list]}?limit=${PAGE}&offset=${offset}`, { signal })
-const formatDate = value => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
 export default function Admin() {
   const [state, setState] = useState({ loading: true, error: '', allowed: false })
   const [meId, setMeId] = useState(null)
-  const [data, setData] = useState({ users: [], listings: [], feed: [] })
-  const [more, setMore] = useState({ users: false, listings: false, feed: false })
+  const [data, setData] = useState({ users: [], clubRequests: [], listings: [], feed: [] })
+  const [more, setMore] = useState({ users: false, clubRequests: false, listings: false, feed: false })
   const [tab, setTab] = useState('users')
   const [busy, setBusy] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [partnerNotice, setPartnerNotice] = useState('')
+  const [partnerForm, setPartnerForm] = useState({
+    email: '', contactName: '', orgName: '', handle: '', category: PartnerCategory.RealEstate, description: '', hours: '', location: '',
+  })
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
@@ -28,9 +33,9 @@ export default function Admin() {
       .then(async profile => {
         if (profile.role !== 'admin') return setState({ loading: false, error: '', allowed: false })
         setMeId(profile.id)
-        const [users, listings, feed] = await Promise.all(tabs.map(([list]) => fetchPage(list, 0, signal)))
-        setData({ users, listings, feed })
-        setMore({ users: users.length === PAGE, listings: listings.length === PAGE, feed: feed.length === PAGE })
+        const [users, clubRequests, listings, feed] = await Promise.all(['users', 'clubRequests', 'listings', 'feed'].map(list => fetchPage(list, 0, signal)))
+        setData({ users, clubRequests, listings, feed })
+        setMore({ users: users.length === PAGE, clubRequests: clubRequests.length === PAGE, listings: listings.length === PAGE, feed: feed.length === PAGE })
         setState({ loading: false, error: '', allowed: true })
       })
       .catch(err => { if (!signal.aborted) setState({ loading: false, error: err.message, allowed: false }) })
@@ -80,6 +85,22 @@ export default function Admin() {
     run(item.id, () => apiRequest(`${path}/${item.id}`, { method: 'DELETE' }), () => remove(list, item.id))
   }
 
+  function reviewClubRequest(request, decision) {
+    const note = decision === 'rejected' ? window.prompt('Optional reason for rejecting:') ?? '' : ''
+    run(request.id, () => apiRequest(`/admin/club-requests/${request.id}`, { method: 'PATCH', body: { decision, ...(note.trim() ? { note: note.trim() } : {}) } }),
+      updated => replace('clubRequests', updated))
+  }
+
+  function createPartner(event) {
+    event.preventDefault()
+    setPartnerNotice('')
+    run('partner', () => apiRequest('/admin/partners', { method: 'POST', body: partnerForm }), created => {
+      setPartnerNotice(`Created partner "${created.org_name}" (${created.email}). They can now sign in via email code.`)
+      setPartnerForm({ email: '', contactName: '', orgName: '', handle: '', category: PartnerCategory.RealEstate, description: '', hours: '', location: '' })
+      setAttempt(a => a + 1)
+    })
+  }
+
   function saveFeedPost(post, changes, done) {
     run(post.id, () => apiRequest(`/admin/feed/${post.id}`, { method: 'PATCH', body: changes }),
       updated => { replace('feed', updated); done() })
@@ -117,7 +138,7 @@ export default function Admin() {
                 {tabs.map(([id, label]) => (
                   <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
                     className={`border-2 border-ink px-4 py-2 font-mono text-xs uppercase tracking-widest ${tab === id ? 'bg-ink text-paper' : 'bg-white shadow-hard'}`}>
-                    {label} ({data[id].length}{more[id] ? '+' : ''})
+                    {label}{data[id] ? ` (${data[id].length}${more[id] ? '+' : ''})` : ''}
                   </button>
                 ))}
               </div>
@@ -127,7 +148,7 @@ export default function Admin() {
                   <>
                     <div className="min-w-0">
                       <p className="break-words font-display text-xl font-extrabold">{user.full_name || 'Unnamed member'}</p>
-                      <p className="font-mono text-xs uppercase text-ink/60">Joined {formatDate(user.created_at)}</p>
+                      <p className="font-mono text-xs uppercase text-ink/60">Joined {formatShortDate(user.created_at)}</p>
                     </div>
                     {user.id === meId ? (
                       <span className="border-2 border-ink bg-sky px-3 py-1 font-mono text-xs uppercase">{roles[user.role]} · You</span>
@@ -143,12 +164,86 @@ export default function Admin() {
                     )}
                   </>
                 )} />}
+                {tab === 'clubRequests' && <Rows items={data.clubRequests} empty="No club requests to review." render={req => (
+                  <>
+                    <div className="min-w-0 max-w-xl">
+                      <p className="break-words font-display text-xl font-extrabold">{req.name} <span className="font-mono text-sm font-normal text-ink/60">@{req.handle}</span></p>
+                      <p className="font-mono text-xs uppercase text-ink/60">
+                        {req.category} · by {req.requester_name || 'Student'} · {req.status}
+                      </p>
+                      <p className="mt-2 text-sm text-ink/80">{req.description}</p>
+                      {req.verification_note && <p className="mt-1 font-mono text-xs text-ink/65">Verification: {req.verification_note}</p>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {req.status === 'pending' ? (
+                        <>
+                          <button type="button" disabled={busy === req.id} onClick={() => reviewClubRequest(req, 'approved')}
+                            className="border-2 border-ink bg-matcha px-3 py-1 font-mono text-xs font-bold uppercase disabled:opacity-50">
+                            Approve
+                          </button>
+                          <button type="button" disabled={busy === req.id} onClick={() => reviewClubRequest(req, 'rejected')}
+                            className="border-2 border-ink bg-cherry px-3 py-1 font-mono text-xs font-bold uppercase text-paper disabled:opacity-50">
+                            Reject
+                          </button>
+                        </>
+                      ) : (
+                        <span className="border-2 border-ink bg-paper px-3 py-1 font-mono text-xs uppercase">{req.status}</span>
+                      )}
+                    </div>
+                  </>
+                )} />}
+                {tab === 'partners' && (
+                  <form onSubmit={createPartner} className="space-y-4 p-6">
+                    <h2 className="font-display text-2xl font-extrabold">Create third-party partner account</h2>
+                    <p className="text-sm text-ink/70">Onboard external partners (real estate agents, local businesses) using any email address. They can sign in via email code, manage their partner page, create listings, post updates, and publish promotional offers.</p>
+                    {partnerNotice && <p role="status" className="border-2 border-ink bg-matcha/40 p-3 font-mono text-xs">{partnerNotice}</p>}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="eyebrow text-ink/70">Partner email (any domain)</span>
+                        <input required type="email" value={partnerForm.email} onChange={e => setPartnerForm(f => ({ ...f, email: e.target.value }))} placeholder="agent@sangenjaya-realty.jp" className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 font-mono text-sm" />
+                      </label>
+                      <label className="block">
+                        <span className="eyebrow text-ink/70">Contact name</span>
+                        <input required maxLength={150} value={partnerForm.contactName} onChange={e => setPartnerForm(f => ({ ...f, contactName: e.target.value }))} placeholder="Kenji Sato" className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block">
+                        <span className="eyebrow text-ink/70">Organization name</span>
+                        <input required minLength={2} maxLength={100} value={partnerForm.orgName} onChange={e => setPartnerForm(f => ({ ...f, orgName: e.target.value }))} placeholder="Sancha Housing Partners" className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block">
+                        <span className="eyebrow text-ink/70">Handle</span>
+                        <input required minLength={2} maxLength={40} pattern="[a-zA-Z0-9_]+" value={partnerForm.handle} onChange={e => setPartnerForm(f => ({ ...f, handle: e.target.value }))} placeholder="sanchahousing" className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 font-mono text-sm" />
+                      </label>
+                      <label className="block">
+                        <span className="eyebrow text-ink/70">Category</span>
+                        <select value={partnerForm.category} onChange={e => setPartnerForm(f => ({ ...f, category: e.target.value }))} className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 text-sm">
+                          {partnerCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="eyebrow text-ink/70">Hours / Contact</span>
+                        <input maxLength={120} value={partnerForm.hours} onChange={e => setPartnerForm(f => ({ ...f, hours: e.target.value }))} placeholder="Mon–Sat 10:00–18:00" className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 text-sm" />
+                      </label>
+                    </div>
+                    <label className="block">
+                      <span className="eyebrow text-ink/70">Location</span>
+                      <input maxLength={120} value={partnerForm.location} onChange={e => setPartnerForm(f => ({ ...f, location: e.target.value }))} placeholder="Sangenjaya Station North Exit" className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 text-sm" />
+                    </label>
+                    <label className="block">
+                      <span className="eyebrow text-ink/70">Description</span>
+                      <textarea required minLength={10} maxLength={1000} rows={3} value={partnerForm.description} onChange={e => setPartnerForm(f => ({ ...f, description: e.target.value }))} placeholder="English-friendly apartment & sharehouse support for TUJ students." className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 text-sm" />
+                    </label>
+                    <button type="submit" disabled={busy === 'partner'} className="btn-primary">
+                      {busy === 'partner' ? 'Creating…' : 'Create partner account →'}
+                    </button>
+                  </form>
+                )}
                 {tab === 'listings' && <Rows items={data.listings} empty="No listings to review." render={listing => (
                   <>
                     <div className="min-w-0">
                       <p className="break-words font-display text-xl font-extrabold">{listing.title}</p>
                       <p className="font-mono text-xs uppercase text-ink/60">
-                        {listing.category} · {listing.author?.name || 'Member'} · {formatDate(listing.created_at)}
+                        {listing.category} · {listing.author?.name || 'Member'} · {formatShortDate(listing.created_at)}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
@@ -251,7 +346,7 @@ function FeedRow({ post, busy, onSave, onDelete }) {
       <div className="min-w-0">
         <p className="break-words font-display text-xl font-extrabold">{post.title}</p>
         <p className="font-mono text-xs uppercase text-ink/60">
-          {post.kind === 'perk' ? 'Perk' : 'Club event'} · {post.author?.name || 'Member'} · {formatDate(post.created_at)}
+          {post.kind === 'perk' ? 'Perk' : 'Club event'} · {post.author?.name || 'Member'} · {formatShortDate(post.created_at)}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">

@@ -197,3 +197,89 @@ const getMySoldListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"p
 export const getMySoldListings = new PreparedQuery<IGetMySoldListingsParams,IGetMySoldListingsResult>(getMySoldListingsIR);
 
 
+/** 'GetListingContact' parameters type */
+export interface IGetListingContactParams {
+  id: string;
+}
+
+/** 'GetListingContact' return type */
+export interface IGetListingContactResult {
+  email: string | null;
+  seller_name: string | null;
+}
+
+/** 'GetListingContact' query type */
+export interface IGetListingContactQuery {
+  params: IGetListingContactParams;
+  result: IGetListingContactResult;
+}
+
+const getListingContactIR: any = {"usedParamSet":{"id":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":61,"b":64}]}],"statement":"select email, seller_name from private.listing_contact_email(:id!::uuid)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select email, seller_name from private.listing_contact_email(:id!::uuid)
+ * ```
+ */
+export const getListingContact = new PreparedQuery<IGetListingContactParams,IGetListingContactResult>(getListingContactIR);
+
+
+/** 'UpdateListing' parameters type */
+export interface IUpdateListingParams {
+  category: string;
+  description: string;
+  id: string;
+  image_urls: stringArray;
+  location?: string | null | void;
+  price_jpy?: NumberOrString | null | void;
+  title: string;
+}
+
+/** 'UpdateListing' return type */
+export interface IUpdateListingResult {
+  author_name: string | null;
+  category: string;
+  created_at: Date;
+  description: string;
+  id: string;
+  image_urls: stringArray;
+  is_mine: boolean | null;
+  location: string | null;
+  price_jpy: number | null;
+  status: string;
+  title: string;
+  updated_at: Date;
+}
+
+/** 'UpdateListing' query type */
+export interface IUpdateListingQuery {
+  params: IUpdateListingParams;
+  result: IUpdateListingResult;
+}
+
+const updateListingIR: any = {"usedParamSet":{"category":true,"title":true,"description":true,"price_jpy":true,"image_urls":true,"location":true,"id":true},"params":[{"name":"category","required":true,"transform":{"type":"scalar"},"locs":[{"a":94,"b":103}]},{"name":"title","required":true,"transform":{"type":"scalar"},"locs":[{"a":116,"b":122}]},{"name":"description","required":true,"transform":{"type":"scalar"},"locs":[{"a":141,"b":153}]},{"name":"price_jpy","required":false,"transform":{"type":"scalar"},"locs":[{"a":170,"b":179}]},{"name":"image_urls","required":true,"transform":{"type":"scalar"},"locs":[{"a":197,"b":208}]},{"name":"location","required":false,"transform":{"type":"scalar"},"locs":[{"a":224,"b":232}]},{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":252,"b":255}]}],"statement":"-- Only the author can edit their own active listing.\nupdate public.listings set\n  category = :category!,\n  title = :title!,\n  description = :description!,\n  price_jpy = :price_jpy,\n  image_urls = :image_urls!,\n  location = :location\nwhere public_id = :id!::uuid\n  and author_id = (select private.current_profile_id())\n  and status = 'active'\nreturning public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name,\ntrue as is_mine"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Only the author can edit their own active listing.
+ * update public.listings set
+ *   category = :category!,
+ *   title = :title!,
+ *   description = :description!,
+ *   price_jpy = :price_jpy,
+ *   image_urls = :image_urls!,
+ *   location = :location
+ * where public_id = :id!::uuid
+ *   and author_id = (select private.current_profile_id())
+ *   and status = 'active'
+ * returning public_id as id, category, title, description,
+ * price_jpy::double precision as price_jpy, image_urls, location, status,
+ * created_at, updated_at, private.author_name(author_id) as author_name,
+ * true as is_mine
+ * ```
+ */
+export const updateListing = new PreparedQuery<IUpdateListingParams,IUpdateListingResult>(updateListingIR);
+
+

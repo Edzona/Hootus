@@ -93,7 +93,7 @@ export default function Community() {
             </div>
           </Card>
 
-          <Card className="lg:col-span-4">
+          <Card className="lg:col-span-6">
             <CardTitle kicker="Local perks hub">
               <span className="font-jp text-2xl">三軒茶屋</span>, unlocked.
             </CardTitle>
@@ -108,18 +108,6 @@ export default function Community() {
                   <p className="mt-1 text-sm text-paper/75">{p.what}</p>
                 </div>
               ))}
-            </div>
-          </Card>
-
-          <Card className="lg:col-span-2">
-            <CardTitle kicker="Real-time chat">Deal in DMs.</CardTitle>
-            <div className="mt-6 space-y-2.5 text-sm">
-              <p className="max-w-[85%] rounded-2xl rounded-bl-sm bg-paper/10 px-4 py-2.5">Is the desk still available?</p>
-              <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-cherry px-4 py-2.5">
-                Yes! Meet at the 1F lobby after 3pm?
-              </p>
-              <p className="max-w-[85%] rounded-2xl rounded-bl-sm bg-paper/10 px-4 py-2.5">Deal. See you then.</p>
-              <p className="pt-1 font-mono text-[10px] uppercase tracking-widest text-paper/40">Seen · just now</p>
             </div>
           </Card>
         </div>

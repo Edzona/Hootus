@@ -27,14 +27,13 @@ be run twice safely. Do not apply this local-only seed to production.
 
 Run `tests/access_control.sql` as the database owner in a disposable project's
 SQL Editor after applying the migration. It checks signup/domain enforcement,
-role escalation, ownership, feed permissions, message privacy, unconfirmed and
+role escalation, ownership, feed permissions, unconfirmed and
 anonymous access, and publication membership; fixtures roll back. This does not
 test live WebSocket delivery, which requires a connected client.
 
-Run `tests/notifications.sql` the same way. It checks notification grouping,
-privacy and re-arming after a conversation is read.
-`tests/push.sql` checks device privacy, one-time push claims, dead-device
-cleanup and moving an endpoint when another account signs in on that browser.
+Run `tests/listing_notifications.sql` the same way. It checks listing notification
+grouping, privacy and push claims. `tests/push.sql` checks device privacy and
+moving an endpoint when another account signs in on that browser.
 `tests/listing_notifications.sql` checks that new listings notify everyone with
 push except the seller, grouping, author-only delivery and re-arming.
 
@@ -63,7 +62,6 @@ confirmation enabled in Supabase Auth.
 | `profiles` | Own profile; admins can read all | Own name, student ID, avatar and bio |
 | `listings` | All members | Members create their own; owner/admin edit or delete |
 | `feed_posts` | All members | Club leaders manage their own events; admins manage events and perks |
-| `messages` | Sender and recipient only, including for admins | Send as yourself; no client editing/deletion |
 
 The table above describes backend operations under RLS, not direct browser access.
 
@@ -115,18 +113,11 @@ roles or PostgREST's `authenticator`.
 The local running schema has been updated without deleting existing records.
 The consolidated initial migration is still intended for a fresh project.
 
-## Realtime messages
+## Realtime
 
-`messages` remains in `supabase_realtime`, but browser roles cannot select the
-table, so raw Postgres Changes events are not available to them. A future
-messaging API must check participants and return only necessary fields; a
-separate authorized notification channel should publish minimal payloads.
-Do not restore browser table grants or send raw database rows to the frontend.
-Messages currently store plain text, not application-layer encrypted content.
-
-References: [Auth profile triggers](https://supabase.com/docs/guides/auth/managing-user-data),
-[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
-[Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).
+Browser roles cannot select application tables, so raw Postgres Changes events are
+not available to them. Do not restore browser table grants or send raw database
+rows to the frontend.
 
 ## Campus schema and fixtures
 

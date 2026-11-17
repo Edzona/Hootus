@@ -14,7 +14,6 @@ Hootus is an English-first platform, closed to the TUJ student body, that doesn'
 - **In-App Event RSVPs & Ticketing** — Clubs and faculty can manage limited-capacity RSVPs or sell digital entry tickets directly through the app.
 - **Verified Club Profiles & Feeds** — Badged accounts for official TUJ student organizations to post event flyers, meeting times, and room numbers.
 - **Local Business "Perks" Hub** — Exclusive Sangenjaya restaurant coupons and English-friendly sharehouse referrals.
-- **Real-Time Messaging** — In-app chat between buyers and sellers.
 
 ## Tech Stack
 
@@ -91,7 +90,7 @@ Browser environment variables (see `frontend/.env.example`):
 
 ### Phase 1: Architecture & Database Modeling (Weeks 1–2)
 
-- **Relational Schema** — Define PostgreSQL tables (`profiles`, `listings`, `messages`, `gigs`, `clubs`) in the Supabase Dashboard, linked via foreign keys.
+- **Relational Schema** — Define PostgreSQL tables (`profiles`, `listings`, `gigs`, `clubs`) in the Supabase Dashboard, linked via foreign keys.
 - **Domain Lock & Security** — Configure Google OAuth in Supabase with domain restriction (`hd=temple.edu`) and write Row Level Security (RLS) policies for user data protection.
 - **Component Kit Setup** — Initialize the React repo with Tailwind CSS for bottom-tab navigation, modal overlays, and responsive feed grids.
 
@@ -100,4 +99,4 @@ Browser environment variables (see `frontend/.env.example`):
 - **Sprint 1 — Auth & Profiles:** Connect Supabase, implement domain-locked OAuth login, and build profile editing and club badge rendering.
 - **Sprint 2 — Marketplace Engine:** Browser-based image compression, photo uploads to Supabase Storage, and listing queries with real-time category/price filters.
 - **Sprint 3 — Gigs & Club Feeds:** Sub-feeds for peer micro-tasks and dedicated event posting boards for verified campus organizations.
-- **Sprint 4 — Realtime Chat & Meetup Pins:** Live messaging via Supabase Realtime WebSocket channels, plus Leaflet/Google Maps embeds for meetup locations.
+- **Sprint 4 — Meetup Pins:** Leaflet/Google Maps embeds for meetup locations.

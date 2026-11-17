@@ -1,6 +1,6 @@
 import { createFeedPost as insertPost, getFeed as selectPosts } from '../generated/feed.queries.js';
 import { withAuthor } from '../helpers/authors.js';
-import { pageSchema } from '../helpers/validation.js';
+import { assertOwnsPhotos, extractPhotoNames, imageUrlsSchema, pageSchema } from '../helpers/validation.js';
 import { ErrorCode } from '../types/errorCode.js';
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
@@ -11,7 +11,7 @@ import { FeedPostKind, UserRole } from '../types/domain.js';
 const common = {
   title: z.string().trim().min(1).max(200),
   body: z.string().trim().max(10000).default(''),
-  image_urls: z.array(z.url().refine(url => /^https?:\/\//.test(url))).max(10).default([]),
+  image_urls: imageUrlsSchema,
 };
 
 export const feedSchema = z.discriminatedUnion('kind', [
@@ -29,25 +29,32 @@ export const feedSchema = z.discriminatedUnion('kind', [
 ]);
 
 // Record requires an entry for every enum member when a new kind is added.
+// Promoted club managers (role = 'student') may also post perks; RLS enforces
+// their club_members manager status.
 const publishRoles: Record<FeedPostKind, readonly UserRole[]> = {
   [FeedPostKind.ClubEvent]: [UserRole.ClubLeader, UserRole.Admin],
-  [FeedPostKind.Perk]: [UserRole.Admin],
+  [FeedPostKind.Perk]: [UserRole.ClubLeader, UserRole.Partner, UserRole.Admin],
 };
 
 export const createFeedPost: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const body = res.locals.body as z.infer<typeof feedSchema>;
-  if (!publishRoles[body.kind].includes(req.user.role)) {
+  const allowedByRole = publishRoles[body.kind].includes(req.user.role);
+  if (!allowedByRole && !(body.kind === FeedPostKind.Perk && req.user.role === UserRole.Student)) {
     throw new HttpError(403, ErrorCode.Forbidden, 'Your role cannot publish this type of feed post.');
   }
-  const [data] = await req.db(tx => insertPost.run({
-    ...body, authorId: req.user.internalId,
-    room_number: body.kind === FeedPostKind.ClubEvent ? body.room_number : null,
-    meeting_time: body.kind === FeedPostKind.ClubEvent ? body.meeting_time : null,
-    business_name: body.kind === FeedPostKind.Perk ? body.business_name : null,
-    coupon_code: body.kind === FeedPostKind.Perk ? body.coupon_code : null,
-    expires_at: body.kind === FeedPostKind.Perk ? body.expires_at : null,
-  }, tx));
+  const names = extractPhotoNames(body.image_urls);
+  const [data] = await req.db(async tx => {
+    await assertOwnsPhotos(names, tx);
+    return insertPost.run({
+      ...body, authorId: req.user.internalId,
+      room_number: body.kind === FeedPostKind.ClubEvent ? body.room_number : null,
+      meeting_time: body.kind === FeedPostKind.ClubEvent ? body.meeting_time : null,
+      business_name: body.kind === FeedPostKind.Perk ? body.business_name : null,
+      coupon_code: body.kind === FeedPostKind.Perk ? body.coupon_code : null,
+      expires_at: body.kind === FeedPostKind.Perk ? body.expires_at : null,
+    }, tx);
+  });
   res.status(201).json({ data: withAuthor(data) });
 };
 export const getFeed: RequestHandler = async (req, res) => {

@@ -5,7 +5,7 @@ import CodeVerification from './CodeVerification'
 
 const DOMAIN = '@temple.edu'
 const TEMPLE_EMAIL = /^[a-z0-9._%+-]+@temple\.edu$/
-const STUDENT_ID = /^\d{9}$/
+const ANY_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const inputClass =
   'w-full border-2 border-ink bg-white px-4 py-3.5 font-mono text-sm text-ink outline-none transition-shadow placeholder:text-ink/40 focus:shadow-hard'
@@ -13,14 +13,13 @@ const inputClass =
 const labelClass = 'eyebrow text-ink/70'
 
 const fields = [
-  { key: 'name', label: 'Full name', type: 'text', autoComplete: 'name', placeholder: 'Hana Tanaka' },
-  { key: 'studentId', label: 'Student ID', type: 'text', inputMode: 'numeric', placeholder: '9-digit ID' },
+  { key: 'name', label: 'Username', type: 'text', autoComplete: 'username', placeholder: 'hana_t' },
   { key: 'email', label: 'Student email', type: 'email', autoComplete: 'email', placeholder: `you${DOMAIN}` },
 ]
 
 export default function SignUp() {
   const id = useId()
-  const [values, setValues] = useState({ name: '', studentId: '', email: '' })
+  const [values, setValues] = useState({ name: '', email: '' })
   const [status, setStatus] = useState('idle')
   const [errors, setErrors] = useState({})
   const [signingIn, setSigningIn] = useState(false)
@@ -32,17 +31,20 @@ export default function SignUp() {
       authenticated: false,
       body: {
         email: values.email.trim().toLowerCase(),
-        ...(!signingIn ? { name: values.name.trim(), studentId: values.studentId.trim() } : {}),
+        ...(!signingIn ? { name: values.name.trim() } : {}),
       },
     })
   }
 
   function validate(v) {
     const errs = {}
-    if (!signingIn && !v.name.trim()) errs.name = 'Enter your full name.'
-    if (!signingIn && !STUDENT_ID.test(v.studentId.trim())) errs.studentId = 'Enter your 9-digit student ID.'
-    if (!TEMPLE_EMAIL.test(v.email.trim().toLowerCase()))
-      errs.email = `Use your ${DOMAIN} email — HUS is for verified Temple students only.`
+    const normalized = v.email.trim().toLowerCase()
+    if (!signingIn && !v.name.trim()) errs.name = 'Enter a username.'
+    if (signingIn ? !ANY_EMAIL.test(normalized) : !TEMPLE_EMAIL.test(normalized)) {
+      errs.email = signingIn
+        ? 'Enter a valid email address.'
+        : `Use your ${DOMAIN} email — HUS is for verified Temple students only.`
+    }
     return errs
   }
 
@@ -96,8 +98,8 @@ export default function SignUp() {
             <span className="font-serif font-normal italic tracking-normal text-cherry">flock.</span>
           </h1>
           <p className="rise mt-6 text-lg leading-relaxed text-ink/75" style={{ '--d': '200ms' }}>
-            Verified Temple students only. Your student ID and{' '}
-            <span className="whitespace-nowrap font-mono text-base text-ink">{DOMAIN}</span> email keep the
+            Verified Temple students only. Your{' '}
+            <span className="whitespace-nowrap font-mono text-base text-ink">{DOMAIN}</span> email keeps the
             marketplace closed to campus.
           </p>
 

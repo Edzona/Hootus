@@ -1,4 +1,8 @@
-import { getMyProfile as selectMyProfile, updateMyProfile as saveMyProfile } from '../generated/profiles.queries.js';
+import {
+  getMyProfile as selectMyProfile,
+  setMyEmailDigest,
+  updateMyProfile as saveMyProfile,
+} from '../generated/profiles.queries.js';
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
@@ -11,7 +15,11 @@ import { ErrorCode } from '../types/errorCode.js';
 export const profileUpdateSchema = z.strictObject({
   bio: z.string().trim().max(500).transform(bio => bio || null).nullable().optional(),
   avatar_url: z.url().max(500).nullable().optional(),
-}).refine(body => body.bio !== undefined || body.avatar_url !== undefined, 'Send bio or avatar_url.');
+  email_digest: z.boolean().optional(),
+}).refine(
+  body => body.bio !== undefined || body.avatar_url !== undefined || body.email_digest !== undefined,
+  'Send bio, avatar_url, or email_digest.',
+);
 const avatarFileName = /^[0-9a-f-]{36}\.(?:jpg|png|webp)$/;
 
 export const getMyProfile: RequestHandler = async (req, res) => {
@@ -23,7 +31,7 @@ export const getMyProfile: RequestHandler = async (req, res) => {
 
 export const updateMyProfile: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
-  const { bio, avatar_url: avatarUrl } = res.locals.body as z.infer<typeof profileUpdateSchema>;
+  const { bio, avatar_url: avatarUrl, email_digest: emailDigest } = res.locals.body as z.infer<typeof profileUpdateSchema>;
   // Photos must be files the caller uploaded to their own folder in the avatars bucket.
   if (avatarUrl) {
     const folder = `${env.SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/avatars/${req.user.authUserId}/`;
@@ -31,9 +39,17 @@ export const updateMyProfile: RequestHandler = async (req, res) => {
       throw new HttpError(400, ErrorCode.InvalidData, 'Upload your profile photo before saving it.');
     }
   }
-  const [data] = await req.db(tx => saveMyProfile.run({
-    publicId: req.user.id, setBio: bio !== undefined, bio, setAvatar: avatarUrl !== undefined, avatarUrl,
-  }, tx));
+  const [data] = await req.db(async tx => {
+    if (emailDigest !== undefined) {
+      await setMyEmailDigest.run({ publicId: req.user.id, enabled: emailDigest }, tx);
+    }
+    if (bio !== undefined || avatarUrl !== undefined) {
+      return saveMyProfile.run({
+        publicId: req.user.id, setBio: bio !== undefined, bio, setAvatar: avatarUrl !== undefined, avatarUrl,
+      }, tx);
+    }
+    return selectMyProfile.run({ publicId: req.user.id }, tx);
+  });
   if (!data) throw new HttpError(403, ErrorCode.ProfileRequired, 'An active student profile is required.');
   res.json({ data });
 };
