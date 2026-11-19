@@ -45,7 +45,7 @@ export const setUserRole: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const { id } = res.locals.params as z.infer<typeof adminIdParams>;
   const { role } = res.locals.body as z.infer<typeof setUserRoleBody>;
-  if (id === req.user.id) throw new HttpError(409, ErrorCode.Conflict, 'Admins cannot change their own role.');
+  if (id.toLowerCase() === req.user.id) throw new HttpError(409, ErrorCode.Conflict, 'Admins cannot change their own role.');
   const [user] = await req.db(tx => q.setUserRole.run({ id, role }, tx));
   if (!user) throw new HttpError(404, ErrorCode.NotFound, 'That member no longer exists.');
   res.json({ data: user });

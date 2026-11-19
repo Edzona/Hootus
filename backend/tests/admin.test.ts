@@ -75,6 +75,10 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.equal((await call(`/api/admin/users/${randomUUID()}`, admin, { role: UserRole.Student }, {}, 'PATCH')).status, 404);
       const self = await call(`/api/admin/users/${users[UserRole.Admin].publicId}`, admin, { role: UserRole.Student }, {}, 'PATCH');
       assert.equal(self.status, 409);
+      const uppercaseSelfId = users[UserRole.Admin].publicId.replace(/[a-f]/g, char => char.toUpperCase());
+      assert.notEqual(uppercaseSelfId, users[UserRole.Admin].publicId);
+      const uppercaseSelf = await call(`/api/admin/users/${uppercaseSelfId}`, admin, { role: UserRole.Student }, {}, 'PATCH');
+      assert.equal(uppercaseSelf.status, 409);
       try {
         const result = await call(path, admin, { role: UserRole.ClubLeader }, {}, 'PATCH');
         assert.equal(result.status, 200, JSON.stringify(result.body));
