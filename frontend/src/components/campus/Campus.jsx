@@ -142,7 +142,9 @@ export default function Campus({ hash, notif }) {
     try {
       const rows = await apiRequest('/feed?limit=30', { signal })
       setOffers(rows.filter(item => item.kind === 'perk'))
-    } catch {}
+    } catch {
+      return
+    }
   }, [])
 
   useEffect(() => {
