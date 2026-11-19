@@ -6,7 +6,7 @@ import ProfileEditor from './ProfileEditor'
 import ProfilePhoto from './ProfilePhoto'
 import SoldHistory from './SoldHistory'
 
-const roles = { student: 'Student', club_leader: 'Club leader', partner: 'Partner', admin: 'Admin' }
+const roles = { student: 'Student', club_leader: 'Club leader', partner: 'Partner', admin: 'Admin', moderator: 'Moderator' }
 
 export default function Profile({ embedded = false, onProfileChange }) {
   const [profile, setProfile] = useState(null)
@@ -63,11 +63,18 @@ export default function Profile({ embedded = false, onProfileChange }) {
             <section className="overflow-hidden rounded-2xl border border-[#ebe7e4] bg-white">
               <div className="flex h-24 items-start justify-between bg-gradient-to-r from-[#f8f3f4] via-[#fdf7ea] to-[#f4f7f5] px-5 py-3">
                 <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-ink/50">TUJ · TOKYO</span>
-                {profile.role === 'admin' && (
-                  <a href="#/admin" className="rounded-full border border-[#ebe7e4] bg-white px-3 py-1 font-mono text-xs text-ink hover:border-ink/40">
-                    Admin desk →
-                  </a>
-                )}
+                <div className="flex gap-2">
+                  {profile.role === 'admin' && (
+                    <a href="#/admin" className="rounded-full border border-[#ebe7e4] bg-white px-3 py-1 font-mono text-xs text-ink hover:border-ink/40">
+                      Admin desk →
+                    </a>
+                  )}
+                  {['admin', 'moderator'].includes(profile.role) && (
+                    <a href="#/moderation" className="rounded-full border border-[#ebe7e4] bg-white px-3 py-1 font-mono text-xs text-ink hover:border-ink/40">
+                      Moderation →
+                    </a>
+                  )}
+                </div>
               </div>
               <div className="px-6 pb-6 pt-5">
                 <div className="flex flex-wrap items-center gap-5">
