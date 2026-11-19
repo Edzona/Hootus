@@ -36,9 +36,9 @@ select r.public_id as id, r.target_kind as kind, r.target_public_id as target_id
     when 'club_post' then private.author_name(p.author_id)
   end as target_author_name,
   case r.target_kind
-    when 'listing' then l.hidden_at is not null
-    when 'feed_post' then f.hidden_at is not null
-    when 'club_post' then p.hidden_at is not null
+    when 'listing' then case when l.id is null then null else l.hidden_at is not null end
+    when 'feed_post' then case when f.id is null then null else f.hidden_at is not null end
+    when 'club_post' then case when p.id is null then null else p.hidden_at is not null end
   end as target_hidden,
   r.reason, r.status, r.created_at, r.resolved_at
 from public.content_reports r

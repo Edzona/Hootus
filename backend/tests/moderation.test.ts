@@ -175,7 +175,9 @@ test('reports and moderation enforce privacy, permissions, and hidden-content be
       assert.deepEqual(deleted.body.data, { id: clubPost.body.data.id });
       assert(!((await call('/api/campus', student.token)).body.data.posts as { id: string }[]).some(item => item.id === clubPost.body.data.id));
       const resolved = await call('/api/moderation/reports?status=resolved', moderator.token);
-      assert(resolved.body.data.some((item: { id: string }) => item.id === deletionReport.body.data.id));
+      const deletedReport = resolved.body.data.find((item: { id: string }) => item.id === deletionReport.body.data.id);
+      assert.equal(deletedReport.target_hidden, null);
+      assert.equal(deletedReport.target_title, null);
       const dismissAgain = await call(`/api/moderation/reports/${feedReport.body.data.id}`, moderator.token, { status: 'resolved' }, {}, 'PATCH');
       assert.equal(dismissAgain.status, 404);
       assert.equal((await call(`/api/moderation/content/listing/${listing.body.data.id}`, moderator.token, { hidden: 'yes' }, {}, 'PATCH')).status, 400);

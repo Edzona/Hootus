@@ -80,7 +80,7 @@ export interface IGetModerationReportsQuery {
   result: IGetModerationReportsResult;
 }
 
-const getModerationReportsIR: any = {"usedParamSet":{"status":true,"limit":true,"offset":true},"params":[{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":1041,"b":1048}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":1100,"b":1106}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":1120,"b":1127}]}],"statement":"select r.public_id as id, r.target_kind as kind, r.target_public_id as target_id,\n  case r.target_kind\n    when 'listing' then l.title\n    when 'feed_post' then f.title\n    when 'club_post' then left(p.body, 200)\n  end as target_title,\n  case r.target_kind\n    when 'listing' then private.author_name(l.author_id)\n    when 'feed_post' then private.author_name(f.author_id)\n    when 'club_post' then private.author_name(p.author_id)\n  end as target_author_name,\n  case r.target_kind\n    when 'listing' then l.hidden_at is not null\n    when 'feed_post' then f.hidden_at is not null\n    when 'club_post' then p.hidden_at is not null\n  end as target_hidden,\n  r.reason, r.status, r.created_at, r.resolved_at\nfrom public.content_reports r\nleft join public.listings l on r.target_kind = 'listing' and l.public_id = r.target_public_id\nleft join public.feed_posts f on r.target_kind = 'feed_post' and f.public_id = r.target_public_id\nleft join public.club_posts p on r.target_kind = 'club_post' and p.public_id = r.target_public_id\nwhere r.status = :status!::text\norder by r.created_at desc, r.id desc\nlimit :limit!::int offset :offset!::int"};
+const getModerationReportsIR: any = {"usedParamSet":{"status":true,"limit":true,"offset":true},"params":[{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":1167,"b":1174}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":1226,"b":1232}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":1246,"b":1253}]}],"statement":"select r.public_id as id, r.target_kind as kind, r.target_public_id as target_id,\n  case r.target_kind\n    when 'listing' then l.title\n    when 'feed_post' then f.title\n    when 'club_post' then left(p.body, 200)\n  end as target_title,\n  case r.target_kind\n    when 'listing' then private.author_name(l.author_id)\n    when 'feed_post' then private.author_name(f.author_id)\n    when 'club_post' then private.author_name(p.author_id)\n  end as target_author_name,\n  case r.target_kind\n    when 'listing' then case when l.id is null then null else l.hidden_at is not null end\n    when 'feed_post' then case when f.id is null then null else f.hidden_at is not null end\n    when 'club_post' then case when p.id is null then null else p.hidden_at is not null end\n  end as target_hidden,\n  r.reason, r.status, r.created_at, r.resolved_at\nfrom public.content_reports r\nleft join public.listings l on r.target_kind = 'listing' and l.public_id = r.target_public_id\nleft join public.feed_posts f on r.target_kind = 'feed_post' and f.public_id = r.target_public_id\nleft join public.club_posts p on r.target_kind = 'club_post' and p.public_id = r.target_public_id\nwhere r.status = :status!::text\norder by r.created_at desc, r.id desc\nlimit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -97,9 +97,9 @@ const getModerationReportsIR: any = {"usedParamSet":{"status":true,"limit":true,
  *     when 'club_post' then private.author_name(p.author_id)
  *   end as target_author_name,
  *   case r.target_kind
- *     when 'listing' then l.hidden_at is not null
- *     when 'feed_post' then f.hidden_at is not null
- *     when 'club_post' then p.hidden_at is not null
+ *     when 'listing' then case when l.id is null then null else l.hidden_at is not null end
+ *     when 'feed_post' then case when f.id is null then null else f.hidden_at is not null end
+ *     when 'club_post' then case when p.id is null then null else p.hidden_at is not null end
  *   end as target_hidden,
  *   r.reason, r.status, r.created_at, r.resolved_at
  * from public.content_reports r
