@@ -146,6 +146,14 @@ export const getAdminClubs: RequestHandler = async (req, res) => {
   res.json({ data });
 };
 
+export const getAdminClub: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof adminIdParams>;
+  const [club] = await req.db(tx => q.getAdminClub.run({ id }, tx));
+  if (!club) throw notFound('Club not found.');
+  res.json({ data: club });
+};
+
 export const createAdminClub: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const body = res.locals.body as z.infer<typeof adminClubBody>;

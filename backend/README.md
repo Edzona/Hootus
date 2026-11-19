@@ -122,6 +122,7 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | PATCH | `/api/admin/club-requests/:id` | Admin; approve or reject a pending club request (`{ decision, note? }`) |
 | POST | `/api/admin/partners` | Admin; onboard a third-party partner account and partner page |
 | GET | `/api/admin/clubs` | Admin; all clubs and partner pages (`?limit&offset`) |
+| GET | `/api/admin/clubs/:id` | Admin; one club or partner page |
 | POST | `/api/admin/clubs` | Admin; create a club and assign an approved founder |
 | PATCH | `/api/admin/clubs/:id/founder` | Admin; transfer a club to an approved member |
 | DELETE | `/api/admin/clubs/:id` | Admin; delete a club and its activity (partner pages are protected) |

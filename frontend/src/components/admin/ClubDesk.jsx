@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../../lib/api'
 import { ClubCategory, ClubColor, MemberRole, ReviewStatus, clubCategories } from '../../../../backend/src/types/clubOptions'
 
@@ -30,6 +30,8 @@ export default function ClubDesk({ users, moreUsers, onLoadMoreUsers, loadingUse
   const [notice, setNotice] = useState('')
   const [attempt, setAttempt] = useState(0)
   const selected = clubs.find(club => club.id === selectedId) || null
+  const selectedIdRef = useRef(selectedId)
+  selectedIdRef.current = selectedId
   const selectedOrgType = selected?.org_type
   const approvedMembers = members.filter(member => member.status === ReviewStatus.Approved && !member.is_founder)
 
@@ -53,6 +55,20 @@ export default function ClubDesk({ users, moreUsers, onLoadMoreUsers, loadingUse
       setLoadingMore(false)
     }
   }, [])
+
+  async function refreshClub(id) {
+    if (selectedIdRef.current === id) setMembersLoading(true)
+    try {
+      const [club, rows] = await Promise.all([
+        apiRequest(`/admin/clubs/${id}`),
+        apiRequest(`/campus/clubs/${id}/members`),
+      ])
+      setClubs(current => current.map(item => item.id === id ? club : item))
+      if (selectedIdRef.current === id) setMembers(rows)
+    } finally {
+      if (selectedIdRef.current === id) setMembersLoading(false)
+    }
+  }
 
   useEffect(() => { loadClubs() }, [attempt, loadClubs])
 
@@ -137,10 +153,9 @@ export default function ClubDesk({ users, moreUsers, onLoadMoreUsers, loadingUse
     setError('')
     setNotice('')
     try {
-      const updated = await apiRequest(`/campus/clubs/${selected.id}/members/${member.id}`, { method: 'PATCH', body: changes })
-      setMembers(current => current.map(item => item.id === member.id ? { ...item, ...updated } : item))
+      await apiRequest(`/campus/clubs/${selected.id}/members/${member.id}`, { method: 'PATCH', body: changes })
+      await refreshClub(selected.id)
       setNotice(message)
-      setAttempt(value => value + 1)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -155,9 +170,8 @@ export default function ClubDesk({ users, moreUsers, onLoadMoreUsers, loadingUse
     setNotice('')
     try {
       await apiRequest(`/campus/clubs/${selected.id}/members/${member.id}`, { method: 'DELETE' })
-      setMembers(current => current.filter(item => item.id !== member.id))
+      await refreshClub(selected.id)
       setNotice('Member removed.')
-      setAttempt(value => value + 1)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -174,14 +188,13 @@ export default function ClubDesk({ users, moreUsers, onLoadMoreUsers, loadingUse
     setError('')
     setNotice('')
     try {
-      const updated = await apiRequest(`/admin/clubs/${selected.id}/founder`, {
+      await apiRequest(`/admin/clubs/${selected.id}/founder`, {
         method: 'PATCH',
         body: { memberId: transferId },
       })
-      setClubs(current => current.map(club => club.id === selected.id ? { ...club, ...updated } : club))
+      await refreshClub(selected.id)
       setTransferId('')
       setNotice('Club founder transferred.')
-      setAttempt(value => value + 1)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -218,7 +231,12 @@ export default function ClubDesk({ users, moreUsers, onLoadMoreUsers, loadingUse
           {showCreate ? 'Close form' : '＋ New club'}
         </button>
       </div>
-      {error && <p role="alert" className="border-2 border-cherry bg-white p-3 text-cherry">{error}</p>}
+      {error && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-2 border-cherry bg-white p-3 text-cherry">
+          <span>{error}</span>
+          <button type="button" onClick={() => setAttempt(value => value + 1)} className="font-mono text-xs underline">Reload clubs and members</button>
+        </div>
+      )}
       {notice && <p role="status" className="border-2 border-ink bg-matcha/40 p-3 font-mono text-xs">{notice}</p>}
 
       {showCreate && (

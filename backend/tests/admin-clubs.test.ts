@@ -96,6 +96,15 @@ test('admin club desk lists, creates, transfers, and deletes clubs safely', inte
       assert.match(secondSlug.body.data.slug, new RegExp(`^slug-${suffix}-[a-z0-9]{4}$`));
     });
 
+    await t.test('admin fetches one club by public id', async () => {
+      const detail = await call(`/api/admin/clubs/${clubId}`, admin.token);
+      assert.equal(detail.status, 200, JSON.stringify(detail.body));
+      assert.equal(detail.body.data.id, clubId);
+      assert.equal(detail.body.data.name, 'Desk Club');
+      assert.equal((await call(`/api/admin/clubs/${clubId}`, student.token)).status, 403);
+      assert.equal((await call(`/api/admin/clubs/${randomUUID()}`, admin.token)).status, 404);
+    });
+
     await t.test('admin transfers founder and keeps the former founder as a demotable manager', async () => {
       await owner`update public.profiles set role = ${UserRole.Student} where public_id = ${clubLeader.publicId}`;
       const join = await call(`/api/campus/clubs/${clubId}/membership`, clubLeader.token, undefined, {}, 'POST');
