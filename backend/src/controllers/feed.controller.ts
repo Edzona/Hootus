@@ -29,8 +29,8 @@ export const feedSchema = z.discriminatedUnion('kind', [
 ]);
 
 // Record requires an entry for every enum member when a new kind is added.
-// Promoted club managers (role = 'student') may also post perks; RLS enforces
-// their club_members manager status.
+// Student and moderator club managers may also post perks; RLS enforces their
+// club_members manager status.
 const publishRoles: Record<FeedPostKind, readonly UserRole[]> = {
   [FeedPostKind.ClubEvent]: [UserRole.ClubLeader, UserRole.Admin],
   [FeedPostKind.Perk]: [UserRole.ClubLeader, UserRole.Partner, UserRole.Admin],
@@ -40,7 +40,10 @@ export const createFeedPost: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const body = res.locals.body as z.infer<typeof feedSchema>;
   const allowedByRole = publishRoles[body.kind].includes(req.user.role);
-  if (!allowedByRole && !(body.kind === FeedPostKind.Perk && req.user.role === UserRole.Student)) {
+  if (!allowedByRole && !(
+    body.kind === FeedPostKind.Perk
+    && [UserRole.Student, UserRole.Moderator].includes(req.user.role)
+  )) {
     throw new HttpError(403, ErrorCode.Forbidden, 'Your role cannot publish this type of feed post.');
   }
   const names = extractPhotoNames(body.image_urls);
