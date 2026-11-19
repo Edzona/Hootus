@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { FeedPostKind, ListingCategory, ListingStatus, UserRole } from '../src/types/domain.js';
+import { FeedPostKind, ListingCategory, ListingStatus, PartnerCategory, UserRole } from '../src/types/domain.js';
 import { moderateFeedBody, moderateListingBody } from '../src/controllers/admin.controller.js';
 import { createTestApi } from './helpers/api.js';
 import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
@@ -179,6 +179,47 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.equal(deleted.status, 200);
       assert.deepEqual(deleted.body, { data: { id: post.id } });
       assert.equal((await owner`select 1 from public.feed_posts where public_id = ${post.id}`).length, 0);
+    });
+
+    await t.test('approving a club request with an underscore handle creates a valid slug', async () => {
+      const student = users[UserRole.Student];
+      const request = await call('/api/campus/club-requests', student.token, {
+        name: 'Film Club', handle: 'film_club', category: 'Arts & culture',
+        description: 'A place to watch and discuss films.', verificationNote: 'Weekly screenings and discussion.',
+      });
+      assert.equal(request.status, 201, JSON.stringify(request.body));
+      try {
+        const approved = await call(`/api/admin/club-requests/${request.body.data.id}`, admin, { decision: 'approved' }, {}, 'PATCH');
+        assert.equal(approved.status, 200, JSON.stringify(approved.body));
+        const [club] = await owner`select slug, handle from public.clubs where leader_id =
+          (select id from public.profiles where public_id = ${student.publicId}) and handle like 'film_club%'`;
+        assert.equal(club.slug, 'film-club');
+      } finally {
+        await owner`delete from public.clubs where leader_id =
+          (select id from public.profiles where public_id = ${student.publicId}) and handle like 'film_club%'`;
+        await owner`update public.profiles set role = ${UserRole.Student} where public_id = ${student.publicId}`;
+      }
+    });
+
+    await t.test('creating a partner with an underscore handle creates a valid slug', async () => {
+      const email = `hootus-partner-${randomUUID()}@example.com`;
+      try {
+        const created = await call('/api/admin/partners', admin, {
+          email, contactName: 'Test Partner', orgName: 'Film Partner',
+          handle: 'film_partner', category: PartnerCategory.LocalBusiness,
+          description: 'A local partner fixture account.', hours: '', location: '',
+        });
+        assert.equal(created.status, 201, JSON.stringify(created.body));
+        const [club] = await owner`select slug, handle from public.clubs where public_id = ${created.body.data.club_id}`;
+        assert.equal(club.slug, 'film-partner');
+        const [partner] = await owner`select id from auth.users where email = ${email}`;
+        fixture.ids.push(partner.id);
+        fixture.clubIds.push(created.body.data.club_id);
+      } finally {
+        await owner`delete from public.clubs where leader_id =
+          (select id from public.profiles where email = ${email})`;
+        await owner`delete from auth.users where lower(email) = lower(${email})`;
+      }
     });
   } finally {
     await fixture.cleanup();
