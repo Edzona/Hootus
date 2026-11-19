@@ -25,6 +25,7 @@ export async function apiRequest(path, { method = 'GET', body, signal, authentic
     if (error.name === 'AbortError') throw error
     throw new Error('Cannot reach Hootus. Please check your connection and try again.')
   }
+  if (response.status === 204) return undefined
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
     const error = new Error(payload?.error?.message || 'Hootus is temporarily unavailable. Please try again.')
