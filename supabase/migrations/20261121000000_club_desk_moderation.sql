@@ -432,4 +432,4 @@ as $$
   from summary s
 $$;
 revoke all on function private.claim_digests(integer) from public, anon, authenticated, hootus_api;
-grant execute on function private.claim_digests(integer) to hootus_api;
+grant execute on function private.claim_digests(integer) to hootus_server;

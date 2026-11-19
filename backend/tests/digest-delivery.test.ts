@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { withUser } from '../src/config/database.js';
 import { UserRole } from '../src/types/domain.js';
 import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
 
@@ -14,6 +15,10 @@ test('failed digests are attempted once per run and their window is restored', {
   const { owner, users } = fixture;
   const recipients = [users[UserRole.Student].id, users[UserRole.ClubLeader].id];
   try {
+    await assert.rejects(
+      withUser(users[UserRole.Student].id, tx => tx`select * from private.claim_digests(1)`),
+      error => (error as { code?: string }).code === '42501',
+    );
     await owner`update public.profiles set email_digest = true, digest_sent_at = now() - interval '1 day'
       where auth_user_id = any(${recipients})`;
     await owner`insert into public.listings (author_id, category, title, price_jpy)
