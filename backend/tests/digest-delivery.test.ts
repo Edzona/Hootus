@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { withUser } from '../src/config/database.js';
+import { after, test } from 'node:test';
 import { UserRole } from '../src/types/domain.js';
 import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
 
@@ -8,7 +7,10 @@ import { createIntegrationFixture, integrationOptions } from './helpers/fixtures
 Object.assign(process.env, {
   SMTP_HOST: '127.0.0.1', SMTP_PORT: '9', SMTP_FROM: 'digest@hootus.test', CRON_SECRET: 'test-cron-secret-123456',
 });
+const { sql } = await import('../src/config/database.js');
 const { sendDailyDigests } = await import('../src/helpers/digest.js');
+
+after(() => sql.end());
 
 test('failed digests are attempted once per run and their window is restored', { ...integrationOptions, timeout: 60_000 }, async () => {
   const fixture = await createIntegrationFixture();
@@ -16,7 +18,11 @@ test('failed digests are attempted once per run and their window is restored', {
   const recipients = [users[UserRole.Student].id, users[UserRole.ClubLeader].id];
   try {
     await assert.rejects(
-      withUser(users[UserRole.Student].id, tx => tx`select * from private.claim_digests(1)`),
+      sql.begin(async tx => {
+        await tx`set local role hootus_api`;
+        await tx`select set_config('request.jwt.claim.sub', ${users[UserRole.Student].id}, true)`;
+        await tx`select * from private.claim_digests(1)`;
+      }),
       error => (error as { code?: string }).code === '42501',
     );
     await owner`update public.profiles set email_digest = true, digest_sent_at = now() - interval '1 day'
