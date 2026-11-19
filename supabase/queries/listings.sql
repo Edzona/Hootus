@@ -15,6 +15,7 @@ created_at, updated_at, private.author_name(author_id) as author_name,
 (author_id = (select private.current_profile_id())) as is_mine
 from public.listings
 where status = 'active'
+  and (:categories::text[] is null or category = any(:categories::text[]))
 order by created_at desc, listings.id limit :limit!::int offset :offset!::int;
 
 

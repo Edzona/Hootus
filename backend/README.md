@@ -104,10 +104,10 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | POST | `/api/auth/signin` | Public; existing-account email-code request |
 | GET | `/api/profile/me` | Confirmed member; own profile |
 | PATCH | `/api/profile/me` | Confirmed member; own bio (max 500), photo URL from own `avatars` folder, or `email_digest` |
-| GET | `/api/listings` | Confirmed member |
+| GET | `/api/listings` | Confirmed member; optional `category=sales,gigs` filters before `limit`/`offset` |
 | POST | `/api/listings` | Confirmed member; `image_urls` must be the caller's own `listing-photos` uploads |
 | GET | `/api/listings/mine/sold` | Confirmed member; own sold listings, newest first |
-| GET | `/api/listings/:id/contact` | Confirmed member; active listing seller's email and display name |
+| GET | `/api/listings/:id/contact` | Confirmed member; active listing seller's email and display name (partners: own listings only) |
 | PATCH | `/api/listings/:id` | Listing author; edit own active listing |
 | PATCH | `/api/listings/:id/status` | Listing author; active listing to `{ status: "sold" \| "closed" }` |
 | GET | `/api/feed` | Confirmed member |

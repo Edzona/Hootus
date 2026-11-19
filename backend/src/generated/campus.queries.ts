@@ -595,7 +595,7 @@ export interface IUpdateClubMemberQuery {
   result: IUpdateClubMemberResult;
 }
 
-const updateClubMemberIR: any = {"usedParamSet":{"status":true,"role":true,"clubId":true,"memberId":true},"params":[{"name":"status","required":false,"transform":{"type":"scalar"},"locs":[{"a":53,"b":59}]},{"name":"role","required":false,"transform":{"type":"scalar"},"locs":[{"a":97,"b":101}]},{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":181,"b":188}]},{"name":"memberId","required":true,"transform":{"type":"scalar"},"locs":[{"a":216,"b":225}]}],"statement":"update public.club_members m set\n  status = coalesce(:status::text, m.status),\n  role = coalesce(:role::text, m.role)\nfrom public.clubs c\nwhere m.club_id = c.id\n  and c.public_id = :clubId!::uuid\n  and m.public_id = :memberId!::uuid\n  and private.can_manage_club(c.id)\nreturning m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at"};
+const updateClubMemberIR: any = {"usedParamSet":{"status":true,"role":true,"clubId":true,"memberId":true},"params":[{"name":"status","required":false,"transform":{"type":"scalar"},"locs":[{"a":53,"b":59}]},{"name":"role","required":false,"transform":{"type":"scalar"},"locs":[{"a":97,"b":101}]},{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":181,"b":188}]},{"name":"memberId","required":true,"transform":{"type":"scalar"},"locs":[{"a":216,"b":225}]}],"statement":"update public.club_members m set\n  status = coalesce(:status::text, m.status),\n  role = coalesce(:role::text, m.role)\nfrom public.clubs c\nwhere m.club_id = c.id\n  and c.public_id = :clubId!::uuid\n  and m.public_id = :memberId!::uuid\n  and private.can_manage_club(c.id)\n  and m.profile_id <> c.leader_id\nreturning m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at"};
 
 /**
  * Query generated from SQL:
@@ -608,6 +608,7 @@ const updateClubMemberIR: any = {"usedParamSet":{"status":true,"role":true,"club
  *   and c.public_id = :clubId!::uuid
  *   and m.public_id = :memberId!::uuid
  *   and private.can_manage_club(c.id)
+ *   and m.profile_id <> c.leader_id
  * returning m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at
  * ```
  */

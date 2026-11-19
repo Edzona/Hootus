@@ -2,12 +2,12 @@ import { pageSchema } from '../helpers/validation.js';
 import { Router } from 'express';
 import { validate } from '../middleware/validate.js';
 import {
-  createListing, getListings, updateListing, listingSchema, setListingStatus, listingStatusParams, listingStatusBody, getMySoldListings, getListingContact,
+  createListing, getListings, listingsQuery, updateListing, listingSchema, setListingStatus, listingStatusParams, listingStatusBody, getMySoldListings, getListingContact,
 } from '../controllers/listings.controller.js';
 
 export const listingsRoutes = Router();
 
-listingsRoutes.get('/', validate(pageSchema, 'query'), getListings);
+listingsRoutes.get('/', validate(listingsQuery, 'query'), getListings);
 listingsRoutes.post('/', validate(listingSchema), createListing);
 listingsRoutes.get('/mine/sold', validate(pageSchema, 'query'), getMySoldListings);
 listingsRoutes.get('/:id/contact', validate(listingStatusParams, 'params'), getListingContact);

@@ -24,6 +24,10 @@ export const listingSchema = z.strictObject({
   image_urls: imageUrlsSchema,
   location: z.string().trim().max(300).optional(),
 });
+// `?category=sales,gigs` filters before pagination, so every page is full.
+export const listingsQuery = pageSchema.extend({
+  category: z.string().transform(value => value.split(',')).pipe(z.array(listingCategorySchema).min(1)).optional(),
+});
 export const listingStatusParams = z.strictObject({ id: z.uuid() });
 // Sellers end a listing as a success ('sold') or without one ('closed').
 export const listingStatusBody = z.strictObject({
@@ -56,11 +60,11 @@ export const updateListing: RequestHandler = async (req, res) => {
 
 export const getListings: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
-  const { limit, offset } = res.locals.query as z.infer<typeof pageSchema>;
+  const { limit, offset, category } = res.locals.query as z.infer<typeof listingsQuery>;
   const data = await req.db(async tx => {
     // Viewing the first page clears your "new listings" notification (and re-arms it).
     if (offset === 0) await markListingNotificationsRead.run(undefined, tx);
-    return selectPosts.run({ limit, offset }, tx);
+    return selectPosts.run({ limit, offset, categories: category ?? null }, tx);
   });
   res.json({ data: data.map(withAuthor) });
 };

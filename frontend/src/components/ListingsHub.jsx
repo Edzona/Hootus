@@ -6,6 +6,7 @@ import ListingForm from './ListingForm'
 import { supabase } from '../lib/supabase'
 
 const categoryLabels = { sales: 'For sale', gigs: 'Gigs', housing: 'Housing' }
+const PAGE_SIZE = 50
 const soldLabel = { sales: 'Mark as sold', gigs: 'Mark completed', housing: 'Mark as rented' }
 
 function buildMailLinks(email, sellerName, listing) {
@@ -27,6 +28,8 @@ export default function ListingsHub({ mode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('all')
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
   const defaultCategory = isHousing ? 'housing' : 'sales'
   const [form, setForm] = useState(() => emptyListingForm(defaultCategory))
@@ -55,19 +58,22 @@ export default function ListingsHub({ mode }) {
     return () => { active = false; listener.subscription.unsubscribe() }
   }, [])
 
-  const loadListings = useCallback(async () => {
-    setLoading(true)
+  const loadListings = useCallback(async (offset = 0) => {
+    if (offset === 0) setLoading(true)
     setError('')
     try {
-      const data = await apiRequest('/listings?limit=50')
-      const allowed = isHousing ? ['housing'] : ['sales', 'gigs']
-      setListings(data.filter((item) => allowed.includes(item.category)))
+      const categories = isHousing ? ['housing'] : filter === 'all' ? ['sales', 'gigs'] : [filter]
+      const data = await apiRequest(`/listings?limit=${PAGE_SIZE}&offset=${offset}&category=${categories.join(',')}`)
+      setListings((current) => (offset === 0 ? data : [
+        ...current, ...data.filter((item) => !current.some((existing) => existing.id === item.id)),
+      ]))
+      setHasMore(data.length === PAGE_SIZE)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [isHousing])
+  }, [isHousing, filter])
 
   useEffect(() => {
     if (signedIn === true) loadListings()
@@ -174,7 +180,6 @@ export default function ListingsHub({ mode }) {
     }
   }
 
-  const visibleListings = filter === 'all' ? listings : listings.filter((item) => item.category === filter)
   const accentBg = isHousing ? 'bg-sky' : 'bg-matcha'
   const pageBg = isHousing ? 'bg-sky/15' : 'bg-matcha/15'
 
@@ -261,15 +266,15 @@ export default function ListingsHub({ mode }) {
 
         {signedIn && loading && <p className="text-ink/60">Loading listings…</p>}
 
-        {signedIn && !loading && visibleListings.length === 0 && (
+        {signedIn && !loading && listings.length === 0 && (
           <div className="border-2 border-ink bg-white p-8 text-ink/70">
             Nothing posted here yet. Click <strong>+ Post listing</strong> to add the first one.
           </div>
         )}
 
-        {signedIn && !loading && visibleListings.length > 0 && (
+        {signedIn && !loading && listings.length > 0 && (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {visibleListings.map((item) => (
+            {listings.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -309,6 +314,23 @@ export default function ListingsHub({ mode }) {
                 </div>
               </button>
             ))}
+          </div>
+        )}
+
+        {signedIn && !loading && hasMore && (
+          <div className="mt-8 text-center">
+            <button
+              type="button"
+              disabled={loadingMore}
+              onClick={async () => {
+                setLoadingMore(true)
+                await loadListings(listings.length)
+                setLoadingMore(false)
+              }}
+              className="border-2 border-ink bg-white px-5 py-2 font-mono text-xs uppercase tracking-widest disabled:opacity-50"
+            >
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
           </div>
         )}
       </main>

@@ -183,17 +183,18 @@ function createTransporter() {
   });
 }
 
-export async function sendDailyDigests() {
+export async function sendDailyDigests(batchSize = BATCH_SIZE) {
   if (!digestConfigured()) {
     return { enabled: false, sent: 0, failed: 0 };
   }
   const transporter = createTransporter();
   const baseApi = env.PUBLIC_API_URL.replace(/\/$/, '');
   let sent = 0;
-  let failed = 0;
+  // Failed claims are reverted only after the run, so nobody is retried within it.
+  const failures: { id: string; since: Date }[] = [];
 
   while (true) {
-    const batch = await withServer(tx => q.claimDigests.run({ batch: BATCH_SIZE }, tx));
+    const batch = await withServer(tx => q.claimDigests.run({ batch: batchSize }, tx));
     if (batch.length === 0) break;
 
     for (const row of batch) {
@@ -223,15 +224,16 @@ export async function sendDailyDigests() {
         });
         sent += 1;
       } catch (error) {
-        failed += 1;
+        failures.push({ id: row.profile_id, since: row.since });
         logger.warn('digest send failed: %s', error instanceof Error ? error.name : 'unknown');
-        await withServer(tx => q.revertDigest.run({ id: row.profile_id, since: row.since }, tx))
-          .catch(() => {});
       }
     }
 
-    if (batch.length < BATCH_SIZE) break;
+    if (batch.length < batchSize) break;
   }
 
-  return { enabled: true, sent, failed };
+  for (const failure of failures) {
+    await withServer(tx => q.revertDigest.run(failure, tx)).catch(() => {});
+  }
+  return { enabled: true, sent, failed: failures.length };
 }

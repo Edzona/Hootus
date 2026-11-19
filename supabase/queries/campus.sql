@@ -143,6 +143,7 @@ where m.club_id = c.id
   and c.public_id = :clubId!::uuid
   and m.public_id = :memberId!::uuid
   and private.can_manage_club(c.id)
+  and m.profile_id <> c.leader_id
 returning m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at;
 
 /* @name RemoveClubMember */
