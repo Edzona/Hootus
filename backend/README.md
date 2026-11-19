@@ -56,10 +56,9 @@ On macOS, AirPlay may occupy port 5000. In that case set `PORT=5001` in
 `backend/.env` and `API_PROXY_TARGET=http://127.0.0.1:5001` in `frontend/.env`.
 
 The signup form calls `/api/auth/signup`. The backend validates the fields and
-requests a Supabase email code, passing `full_name` and `student_id` metadata for
-the existing profile trigger. Existing emails receive a normal sign-in code, and a
-duplicate student ID fails with a generic `AUTH_REQUEST_FAILED` error.
-Postgres enforces unique student IDs and case-insensitive unique profile emails.
+requests a Supabase email code, passing `full_name` metadata for the existing
+profile trigger. Existing emails receive a normal sign-in code. Postgres enforces
+case-insensitive unique profile emails.
 The "Already registered? Sign in" option only asks for an email and calls
 `/api/auth/signin` without trying to create a new account.
 The browser verifies the six-digit code with Supabase Auth (`verifyOtp`, type
@@ -114,6 +113,7 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | POST | `/api/feed` | Club leader/admin for events; club leader/manager/partner/admin for perks |
 | GET | `/api/admin/users` | Admin; members' public `id`, name, role, photo, join date (`?limit&offset`) |
 | PATCH | `/api/admin/users/:id` | Admin; `{ role }` for another member (not yourself), via `private.set_profile_role` |
+| GET | `/api/admin/listings` | Admin; all listings, any status (`?limit&offset`) |
 | PATCH | `/api/admin/listings/:id` | Admin; any listing's `status`, `title` or `description` |
 | DELETE | `/api/admin/listings/:id` | Admin; deletes any listing, returns `{ id }` |
 | PATCH | `/api/admin/feed/:id` | Admin; any feed post's `title` or `body` |
@@ -143,7 +143,7 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 Database tables use internal bigint primary/foreign keys and a unique `public_id`
 UUID. API responses expose the record UUID as `id`. Listings and feed posts
 contain `author: { name }` only (`name` can be null if not supplied). Other authors'
-UUIDs, Auth IDs, email addresses, and student IDs are never included. The signed-in
+UUIDs, Auth IDs, and email addresses are never included. The signed-in
 user's private profile endpoint includes their own profile UUID and account fields.
 Future seller actions should submit a listing UUID; the backend resolves the owner.
 
@@ -341,8 +341,9 @@ Apply the notification migrations in order. A trigger on `listings` creates a
 notification for each other member. While a member's listing notification is
 unread, new listings increase its `count` instead of adding rows.
 
-Notifications are delivered by browser push only (below); nothing is
-emailed. `20261110170000_remove_message_email.sql` removed the earlier email
+Individual notifications are delivered by browser push only (below); daily digest
+emails are sent separately to members who enable `profiles.email_digest`.
+`20261110170000_remove_message_email.sql` removed the earlier message email
 delivery. Supabase Auth still emails sign-in codes, which appear in local
 Mailpit as before.
 

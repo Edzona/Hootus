@@ -17,15 +17,18 @@ resend after 60 seconds, and changing the email. Restoring an existing session
 preserves club, event, and profile links. See the backend README for the required
 hosted Supabase email-template settings.
 
+- `/#/signup`: email-code signup and sign-in.
 - `/#/clubs`: Following, Discover, and Events feeds, search, and interest filters.
 - `/#/clubs/:id`: club profile. IDs are UUIDs; seeded club slugs such as `film` also work.
 - `/#/events/:id`: event details and account-persisted RSVP. Seeded slugs such as `screening` also work.
 - `/#/dashboard`: club posts, marketplace finds, and housing suggestions.
 - `/#/activity` and `/#/saved`: the signed-in student's RSVPs and saved posts.
-- `/#/friends`: introduction for the future friends feature.
+- `/#/profile`: private profile and account settings.
+- `/#/club-studio`: club settings, membership, and publishing for club leaders/managers.
+- `/#/marketplace` and `/#/real-estate`: sales/gigs and housing listings.
 - `/#/admin`: admin-only desk for listing members, changing other members'
-  roles, and moderating or deleting listings and feed posts. Linked from the profile for admins; others see an
-  admins-only notice, and the API enforces the role.
+  roles, and moderating or deleting listings and feed posts. Linked from the
+  profile for admins; others see an admins-only notice, and the API enforces the role.
 
 The landing page's **Clubs & Orgs** link opens the campus. All campus data goes
 through the authenticated Express `/api/campus` API. The browser uses Supabase
