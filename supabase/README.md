@@ -12,7 +12,7 @@ an existing project.
 
 This early-stage schema is consolidated into one initial migration. It is for
 fresh databases, not an upgrade script for the old UUID-primary-key schema.
-Profile emails are unique case-insensitively, and student IDs remain unique.
+Profile emails are unique case-insensitively.
 
 Each application table has an internal `bigint generated always as identity`
 primary key and a unique public UUID (`public_id`). Foreign keys use internal
@@ -20,7 +20,7 @@ IDs. `profiles.auth_user_id` links to Supabase Auth's UUID. The backend maps
 public IDs to API `id` fields and never exposes numeric keys in HTTP responses.
 
 `seed.sql` contains the repeatable local demo student (Hana Tanaka,
-`hootus-demo@temple.edu`, student ID `900000001`). It is configured to run after
+`hootus-demo@temple.edu`). It is configured to run after
 migrations on a fresh local database. For an existing local database, run it
 in the local SQL Editor. It adds data without resetting the database and can
 be run twice safely. Do not apply this local-only seed to production.
@@ -59,9 +59,12 @@ confirmation enabled in Supabase Auth.
 
 | Table | Read | Write |
 | --- | --- | --- |
-| `profiles` | Own profile; admins can read all | Own name, student ID, avatar and bio |
+| `profiles` | Own profile; admins can read all | Own avatar, bio and `email_digest` preference; admins can change roles |
 | `listings` | All members | Members create their own; owner/admin edit or delete |
-| `feed_posts` | All members | Club leaders manage their own events; admins manage events and perks |
+| `feed_posts` | All members | Club leaders/managers and partners publish permitted content; admins manage events and perks |
+| `clubs`, `club_events`, `club_posts` | Member-visible clubs and their content; partner pages are scoped | Club leaders/managers edit pages and publish; admins manage |
+| `club_members`, `club_requests` | Own membership/requests; club leaders/managers and admins see relevant rows | Members request membership or club creation; leaders/managers handle membership and admins review club requests |
+| `notifications`, `push_subscriptions` | Own notifications and devices | Members manage read state and devices; the system creates notifications |
 
 The table above describes backend operations under RLS, not direct browser access.
 
@@ -85,11 +88,9 @@ where auth_user_id = '<auth-user-uuid>';
 ```
 
 Every signup starts as `student`, regardless of user-supplied role metadata.
-The trigger accepts `full_name` (or `name`) and `student_id` (or the form's
-`studentId`) from signup metadata. Student IDs are unique nine-digit strings,
-nullable for OAuth onboarding, and self-reported rather than enrollment-verified.
-Email and student ID stay private through profile RLS; a public author directory
-can be added separately later.
+The trigger accepts `full_name` (or `name`) from signup metadata. Email stays
+private through profile RLS; a public author directory can be added separately
+later.
 
 Listings use `sales`, `housing`, or `gigs`; `price_jpy` stores whole yen, with
 `NULL` for unspecified/negotiable prices and `0` for free items. Image URLs are

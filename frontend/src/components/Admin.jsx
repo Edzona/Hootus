@@ -7,7 +7,7 @@ import { PartnerCategory, partnerCategories } from '../../../backend/src/types/c
 const roles = { student: 'Student', club_leader: 'Club leader', partner: 'Partner', admin: 'Admin' }
 const statuses = ['active', 'sold', 'closed']
 const tabs = [['users', 'Users'], ['clubRequests', 'Club requests'], ['partners', 'Partners'], ['listings', 'Listings'], ['feed', 'Feed posts']]
-const sources = { users: '/admin/users', clubRequests: '/admin/club-requests', listings: '/listings', feed: '/feed' }
+const sources = { users: '/admin/users', clubRequests: '/admin/club-requests', listings: '/admin/listings', feed: '/feed' }
 const PAGE = 100
 const fetchPage = (list, offset, signal) => apiRequest(`${sources[list]}?limit=${PAGE}&offset=${offset}`, { signal })
 
@@ -55,7 +55,7 @@ export default function Admin() {
     }
   }
 
-  // Deleted rows are removed locally, so the loaded count is the next offset.
+  // Status changes stay in the admin listing; deleted rows leave both lists.
   function loadMore(list) {
     run(`more:${list}`, () => fetchPage(list, data[list].length), page => {
       setData(current => {

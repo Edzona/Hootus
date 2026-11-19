@@ -119,6 +119,59 @@ test('campus API permissions and student interactions', integrationOptions, asyn
       assert.equal(cleared.posts.find((row: { id: string }) => row.id === postId).likes, 0);
       assert(!cleared.savedPosts.some((row: { id: string }) => row.id === postId));
     });
+
+    await t.test('rejected members can submit a fresh pending request', async () => {
+      const manager = users[UserRole.ClubLeader];
+      const member = users[UserRole.Student];
+      const clubId = randomUUID();
+      campusClubIds.push(clubId);
+      await owner`insert into public.clubs (public_id, slug, name, handle, category, leader_id)
+        select ${clubId}, ${`resubmit-${clubId}`}, 'Resubmission club', ${`resubmit-${clubId}`}, 'Music', id
+        from public.profiles where auth_user_id = ${manager.id}`;
+
+      const membershipPath = `/api/campus/clubs/${clubId}/membership`;
+      const firstRequest = await call(membershipPath, member.token, undefined, {}, 'POST');
+      assert.equal(firstRequest.status, 201, JSON.stringify(firstRequest.body));
+      assert.equal(firstRequest.body.data.status, 'pending');
+      const rejected = await call(`/api/campus/clubs/${clubId}/members/${firstRequest.body.data.id}`, manager.token, { status: 'rejected' }, {}, 'PATCH');
+      assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
+      assert.equal(rejected.body.data.status, 'rejected');
+
+      const secondRequest = await call(membershipPath, member.token, undefined, {}, 'POST');
+      assert.equal(secondRequest.status, 201, JSON.stringify(secondRequest.body));
+      assert.equal(secondRequest.body.data.status, 'pending');
+      const members = await call(`/api/campus/clubs/${clubId}/members`, manager.token);
+      assert.equal(members.status, 200, JSON.stringify(members.body));
+      assert(members.body.data.some((row: { id: string; status: string }) =>
+        row.id === secondRequest.body.data.id && row.status === 'pending'));
+    });
+
+    await t.test('campus: founders cannot be demoted out of club management', async () => {
+      const founder = users[UserRole.ClubLeader];
+      const manager = users[UserRole.Student];
+      const clubId = randomUUID();
+      campusClubIds.push(clubId);
+      await owner`insert into public.clubs (public_id, slug, name, handle, category, leader_id)
+        select ${clubId}, ${`founder-${clubId}`}, 'Founder club', ${`founder-${clubId}`}, 'Music', id
+        from public.profiles where auth_user_id = ${founder.id}`;
+      await owner`insert into public.club_members (club_id, profile_id, role, status)
+        select c.id, p.id, 'manager', 'approved' from public.clubs c, public.profiles p
+        where c.public_id = ${clubId} and p.auth_user_id = any(${[founder.id, manager.id]})`;
+      const [founderMember] = await owner`select m.public_id from public.club_members m
+        join public.profiles p on p.id = m.profile_id where p.auth_user_id = ${founder.id}
+          and m.club_id = (select id from public.clubs where public_id = ${clubId})`;
+      const memberPath = `/api/campus/clubs/${clubId}/members/${founderMember.public_id}`;
+      for (const body of [{ role: 'member' }, { status: 'rejected' }]) {
+        assert.equal((await call(memberPath, manager.token, body, {}, 'PATCH')).status, 404);
+      }
+      const [stored] = await owner`select role, status from public.club_members where public_id = ${founderMember.public_id}`;
+      assert.deepEqual({ ...stored }, { role: 'manager', status: 'approved' });
+      assert.equal((await call(`/api/campus/clubs/${clubId}/membership`, founder.token, undefined, {}, 'DELETE')).status, 404);
+      const [kept] = await owner`select count(*)::int as count from public.club_members where public_id = ${founderMember.public_id}`;
+      assert.equal(kept.count, 1);
+      const posted = await call(`/api/campus/clubs/${clubId}/posts`, founder.token, { text: 'Founder update' });
+      assert.equal(posted.status, 201, JSON.stringify(posted.body));
+    });
   } finally {
     await fixture.cleanup();
   }

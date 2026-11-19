@@ -4,6 +4,13 @@ select public_id as id, full_name, role, avatar_url, created_at
 from public.profiles
 order by created_at desc, profiles.id limit :limit!::int offset :offset!::int;
 
+/* @name GetListings */
+select public_id as id, category, title, description,
+price_jpy::double precision as price_jpy, image_urls, location, status,
+created_at, updated_at, private.author_name(author_id) as author_name
+from public.listings
+order by created_at desc, listings.id limit :limit!::int offset :offset!::int;
+
 /* @name SetUserRole */
 select id, full_name, role, avatar_url, created_at
 from private.set_profile_role(:id!::uuid, :role!::text);

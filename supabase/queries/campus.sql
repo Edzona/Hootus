@@ -118,12 +118,20 @@ join target t on t.id = m.club_id
 where m.profile_id = (select private.current_profile_id())
   and not exists (select 1 from inserted);
 
+/* @name ClearRejectedClubMembership */
+with target as (select id from public.clubs where public_id = :clubId!::uuid)
+delete from public.club_members m
+where m.club_id in (select id from target)
+  and m.profile_id = (select private.current_profile_id())
+  and m.status = 'rejected';
+
 /* @name LeaveClubMembership */
 with target as (select id from public.clubs where public_id = :clubId!::uuid)
-delete from public.club_members
-where club_id in (select id from target)
-  and profile_id = (select private.current_profile_id())
-returning public_id as id;
+delete from public.club_members m
+where m.club_id in (select id from target)
+  and m.profile_id = (select private.current_profile_id())
+  and not exists (select 1 from public.clubs c where c.id = m.club_id and c.leader_id = m.profile_id)
+returning m.public_id as id;
 
 /* @name GetClubMembers */
 select m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at,
@@ -143,6 +151,7 @@ where m.club_id = c.id
   and c.public_id = :clubId!::uuid
   and m.public_id = :memberId!::uuid
   and private.can_manage_club(c.id)
+  and m.profile_id <> c.leader_id
 returning m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at;
 
 /* @name RemoveClubMember */

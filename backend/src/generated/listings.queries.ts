@@ -81,6 +81,7 @@ export const ownsListingPhotos = new PreparedQuery<IOwnsListingPhotosParams,IOwn
 
 /** 'GetListings' parameters type */
 export interface IGetListingsParams {
+  categories?: stringArray | null | void;
   limit: number;
   offset: number;
 }
@@ -107,7 +108,7 @@ export interface IGetListingsQuery {
   result: IGetListingsResult;
 }
 
-const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":349,"b":355}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":369,"b":376}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name,\n(author_id = (select private.current_profile_id())) as is_mine\nfrom public.listings\nwhere status = 'active'\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
+const getListingsIR: any = {"usedParamSet":{"categories":true,"limit":true,"offset":true},"params":[{"name":"categories","required":false,"transform":{"type":"scalar"},"locs":[{"a":312,"b":322},{"a":358,"b":368}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":424,"b":430}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":444,"b":451}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name,\n(author_id = (select private.current_profile_id())) as is_mine\nfrom public.listings\nwhere status = 'active'\n  and (:categories::text[] is null or category = any(:categories::text[]))\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -118,6 +119,7 @@ const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params"
  * (author_id = (select private.current_profile_id())) as is_mine
  * from public.listings
  * where status = 'active'
+ *   and (:categories::text[] is null or category = any(:categories::text[]))
  * order by created_at desc, listings.id limit :limit!::int offset :offset!::int
  * ```
  */

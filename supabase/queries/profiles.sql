@@ -13,7 +13,7 @@ update public.profiles set
   avatar_url = case when :setAvatar!::boolean then :avatarUrl::text else avatar_url end
 where public_id = :publicId!
 returning public_id as id, email, full_name, avatar_url, bio,
-role, created_at, updated_at;
+role, email_digest, created_at, updated_at;
 
 /* @name SetMyEmailDigest */
 update public.profiles set email_digest = :enabled!::boolean

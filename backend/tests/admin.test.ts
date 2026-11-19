@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { FeedPostKind, ListingCategory, ListingStatus, UserRole } from '../src/types/domain.js';
+import { FeedPostKind, ListingCategory, ListingStatus, PartnerCategory, UserRole } from '../src/types/domain.js';
 import { moderateFeedBody, moderateListingBody } from '../src/controllers/admin.controller.js';
 import { createTestApi } from './helpers/api.js';
 import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
@@ -32,6 +32,7 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
     })).body.data;
     const routes: [string, string, unknown?][] = [
       ['GET', '/api/admin/users'],
+      ['GET', '/api/admin/listings'],
       ['PATCH', `/api/admin/users/${users[UserRole.Student].publicId}`, { role: UserRole.Admin }],
       ['PATCH', `/api/admin/listings/${listing.id}`, { status: ListingStatus.Closed }],
       ['DELETE', `/api/admin/listings/${listing.id}`],
@@ -74,6 +75,10 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.equal((await call(`/api/admin/users/${randomUUID()}`, admin, { role: UserRole.Student }, {}, 'PATCH')).status, 404);
       const self = await call(`/api/admin/users/${users[UserRole.Admin].publicId}`, admin, { role: UserRole.Student }, {}, 'PATCH');
       assert.equal(self.status, 409);
+      const uppercaseSelfId = users[UserRole.Admin].publicId.replace(/[a-f]/g, char => char.toUpperCase());
+      assert.notEqual(uppercaseSelfId, users[UserRole.Admin].publicId);
+      const uppercaseSelf = await call(`/api/admin/users/${uppercaseSelfId}`, admin, { role: UserRole.Student }, {}, 'PATCH');
+      assert.equal(uppercaseSelf.status, 409);
       try {
         const result = await call(path, admin, { role: UserRole.ClubLeader }, {}, 'PATCH');
         assert.equal(result.status, 200, JSON.stringify(result.body));
@@ -131,6 +136,25 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.equal((await call(`/api/admin/listings/${listing.id}`, admin, {}, {}, 'PATCH')).status, 400);
     });
 
+    await t.test('admin lists active and closed listings with public author data only', async () => {
+      const closedListing = (await call('/api/listings', users[UserRole.Student].token, {
+        category: ListingCategory.Sales, title: 'Desk already sold',
+      })).body.data;
+      const closed = await call(`/api/listings/${closedListing.id}/status`, users[UserRole.Student].token, { status: ListingStatus.Closed }, {}, 'PATCH');
+      assert.equal(closed.status, 200, JSON.stringify(closed.body));
+
+      const result = await call('/api/admin/listings?limit=100', admin);
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      const activeRow = result.body.data.find((row: { id: string }) => row.id === listing.id);
+      const closedRow = result.body.data.find((row: { id: string }) => row.id === closedListing.id);
+      assert.equal(activeRow.status, ListingStatus.Active);
+      assert.equal(closedRow.status, ListingStatus.Closed);
+      assert.deepEqual(closedRow.author, { name: 'Test student' });
+      assert(!('author_id' in closedRow) && !('email' in closedRow));
+      assert(!JSON.stringify(result.body).includes(users[UserRole.Student].email));
+      assert.equal((await call('/api/admin/listings?limit=101', admin)).status, 400);
+    });
+
     await t.test('admin moderates and deletes another member\'s listing', async () => {
       const result = await call(`/api/admin/listings/${listing.id}`, admin, { status: ListingStatus.Closed, title: 'Removed by admin' }, {}, 'PATCH');
       assert.equal(result.status, 200, JSON.stringify(result.body));
@@ -155,6 +179,61 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.equal(deleted.status, 200);
       assert.deepEqual(deleted.body, { data: { id: post.id } });
       assert.equal((await owner`select 1 from public.feed_posts where public_id = ${post.id}`).length, 0);
+    });
+
+    await t.test('approving a club request with an underscore handle creates a valid slug', async () => {
+      const student = users[UserRole.Student];
+      const clubLeader = users[UserRole.ClubLeader];
+      const request = await call('/api/campus/club-requests', student.token, {
+        name: 'Film Club', handle: 'film_club', category: 'Arts & culture',
+        description: 'A place to watch and discuss films.', verificationNote: 'Weekly screenings and discussion.',
+      });
+      assert.equal(request.status, 201, JSON.stringify(request.body));
+      try {
+        const approved = await call(`/api/admin/club-requests/${request.body.data.id}`, admin, { decision: 'approved' }, {}, 'PATCH');
+        assert.equal(approved.status, 200, JSON.stringify(approved.body));
+        const [club] = await owner`select slug, handle from public.clubs where leader_id =
+          (select id from public.profiles where public_id = ${student.publicId}) and handle like 'film_club%'`;
+        assert.equal(club.slug, 'film-club');
+
+        const secondRequest = await call('/api/campus/club-requests', clubLeader.token, {
+          name: 'Second Film Club', handle: 'film_club', category: 'Arts & culture',
+          description: 'A second place to watch and discuss films.', verificationNote: 'A second weekly screening group.',
+        });
+        assert.equal(secondRequest.status, 201, JSON.stringify(secondRequest.body));
+        const secondApproved = await call(`/api/admin/club-requests/${secondRequest.body.data.id}`, admin, { decision: 'approved' }, {}, 'PATCH');
+        assert.equal(secondApproved.status, 200, JSON.stringify(secondApproved.body));
+        const [secondClub] = await owner`select slug from public.clubs where leader_id =
+          (select id from public.profiles where public_id = ${clubLeader.publicId}) and handle like 'film_club%'`;
+        assert.match(secondClub.slug, /^film-club-[a-z0-9]{4}$/);
+      } finally {
+        await owner`delete from public.clubs where handle like 'film_club%'
+          and leader_id in (
+            select id from public.profiles where public_id in (${student.publicId}, ${clubLeader.publicId})
+          )`;
+        await owner`update public.profiles set role = ${UserRole.Student} where public_id = ${student.publicId}`;
+      }
+    });
+
+    await t.test('creating a partner with an underscore handle creates a valid slug', async () => {
+      const email = `hootus-partner-${randomUUID()}@example.com`;
+      try {
+        const created = await call('/api/admin/partners', admin, {
+          email, contactName: 'Test Partner', orgName: 'Film Partner',
+          handle: 'film_partner', category: PartnerCategory.LocalBusiness,
+          description: 'A local partner fixture account.', hours: '', location: '',
+        });
+        assert.equal(created.status, 201, JSON.stringify(created.body));
+        const [club] = await owner`select slug, handle from public.clubs where public_id = ${created.body.data.club_id}`;
+        assert.equal(club.slug, 'film-partner');
+        const [partner] = await owner`select id from auth.users where email = ${email}`;
+        fixture.ids.push(partner.id);
+        fixture.clubIds.push(created.body.data.club_id);
+      } finally {
+        await owner`delete from public.clubs where leader_id =
+          (select id from public.profiles where email = ${email})`;
+        await owner`delete from auth.users where lower(email) = lower(${email})`;
+      }
     });
   } finally {
     await fixture.cleanup();

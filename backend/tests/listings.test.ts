@@ -65,6 +65,34 @@ test('listing API validation and persistence', integrationOptions, async t => {
       assert.match(listing.id, /^[0-9a-f-]{36}$/);
       assert(!('public_id' in listing));
     });
+    await t.test('category filter runs before pagination and partners cannot read hidden contacts', async () => {
+      const student = users[UserRole.Student];
+      const housing = await call('/api/listings', student.token, {
+        category: ListingCategory.Housing, title: 'Integration test room', price_jpy: 50000,
+      });
+      assert.equal(housing.status, 201, JSON.stringify(housing.body));
+      const gig = await call('/api/listings', users[UserRole.ClubLeader].token, {
+        category: ListingCategory.Gigs, title: 'Integration test gig', price_jpy: 1000,
+      });
+      assert.equal(gig.status, 201, JSON.stringify(gig.body));
+      const filtered = await call('/api/listings?limit=1&category=housing', student.token);
+      assert.equal(filtered.status, 200);
+      assert.deepEqual(filtered.body.data.map((row: { id: string }) => row.id), [housing.body.data.id]);
+      const market = await call('/api/listings?limit=100&category=sales,gigs', student.token);
+      assert(market.body.data.every((row: { category: string }) => row.category !== ListingCategory.Housing));
+      assert(market.body.data.some((row: { id: string }) => row.id === gig.body.data.id));
+      for (const category of ['bogus', '', 'sales,']) {
+        assert.equal((await call(`/api/listings?category=${category}`, student.token)).status, 400);
+      }
+
+      const contactPath = `/api/listings/${housing.body.data.id}/contact`;
+      const contact = await call(contactPath, users[UserRole.ClubLeader].token);
+      assert.equal(contact.status, 200);
+      assert.equal(contact.body.data.email, student.email);
+      const partnerContact = await call(contactPath, users[UserRole.Partner].token);
+      assert.equal(partnerContact.status, 404);
+      assert(!JSON.stringify(partnerContact.body).includes(student.email));
+    });
   } finally {
     try {
       await owner.begin(async tx => {

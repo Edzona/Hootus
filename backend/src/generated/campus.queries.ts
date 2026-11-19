@@ -503,6 +503,35 @@ const requestClubMembershipIR: any = {"usedParamSet":{"clubId":true},"params":[{
 export const requestClubMembership = new PreparedQuery<IRequestClubMembershipParams,IRequestClubMembershipResult>(requestClubMembershipIR);
 
 
+/** 'ClearRejectedClubMembership' parameters type */
+export interface IClearRejectedClubMembershipParams {
+  clubId: string;
+}
+
+/** 'ClearRejectedClubMembership' return type */
+export type IClearRejectedClubMembershipResult = void;
+
+/** 'ClearRejectedClubMembership' query type */
+export interface IClearRejectedClubMembershipQuery {
+  params: IClearRejectedClubMembershipParams;
+  result: IClearRejectedClubMembershipResult;
+}
+
+const clearRejectedClubMembershipIR: any = {"usedParamSet":{"clubId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":62,"b":69}]}],"statement":"with target as (select id from public.clubs where public_id = :clubId!::uuid)\ndelete from public.club_members m\nwhere m.club_id in (select id from target)\n  and m.profile_id = (select private.current_profile_id())\n  and m.status = 'rejected'"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * with target as (select id from public.clubs where public_id = :clubId!::uuid)
+ * delete from public.club_members m
+ * where m.club_id in (select id from target)
+ *   and m.profile_id = (select private.current_profile_id())
+ *   and m.status = 'rejected'
+ * ```
+ */
+export const clearRejectedClubMembership = new PreparedQuery<IClearRejectedClubMembershipParams,IClearRejectedClubMembershipResult>(clearRejectedClubMembershipIR);
+
+
 /** 'LeaveClubMembership' parameters type */
 export interface ILeaveClubMembershipParams {
   clubId: string;
@@ -519,16 +548,17 @@ export interface ILeaveClubMembershipQuery {
   result: ILeaveClubMembershipResult;
 }
 
-const leaveClubMembershipIR: any = {"usedParamSet":{"clubId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":62,"b":69}]}],"statement":"with target as (select id from public.clubs where public_id = :clubId!::uuid)\ndelete from public.club_members\nwhere club_id in (select id from target)\n  and profile_id = (select private.current_profile_id())\nreturning public_id as id"};
+const leaveClubMembershipIR: any = {"usedParamSet":{"clubId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":62,"b":69}]}],"statement":"with target as (select id from public.clubs where public_id = :clubId!::uuid)\ndelete from public.club_members m\nwhere m.club_id in (select id from target)\n  and m.profile_id = (select private.current_profile_id())\n  and not exists (select 1 from public.clubs c where c.id = m.club_id and c.leader_id = m.profile_id)\nreturning m.public_id as id"};
 
 /**
  * Query generated from SQL:
  * ```
  * with target as (select id from public.clubs where public_id = :clubId!::uuid)
- * delete from public.club_members
- * where club_id in (select id from target)
- *   and profile_id = (select private.current_profile_id())
- * returning public_id as id
+ * delete from public.club_members m
+ * where m.club_id in (select id from target)
+ *   and m.profile_id = (select private.current_profile_id())
+ *   and not exists (select 1 from public.clubs c where c.id = m.club_id and c.leader_id = m.profile_id)
+ * returning m.public_id as id
  * ```
  */
 export const leaveClubMembership = new PreparedQuery<ILeaveClubMembershipParams,ILeaveClubMembershipResult>(leaveClubMembershipIR);
@@ -595,7 +625,7 @@ export interface IUpdateClubMemberQuery {
   result: IUpdateClubMemberResult;
 }
 
-const updateClubMemberIR: any = {"usedParamSet":{"status":true,"role":true,"clubId":true,"memberId":true},"params":[{"name":"status","required":false,"transform":{"type":"scalar"},"locs":[{"a":53,"b":59}]},{"name":"role","required":false,"transform":{"type":"scalar"},"locs":[{"a":97,"b":101}]},{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":181,"b":188}]},{"name":"memberId","required":true,"transform":{"type":"scalar"},"locs":[{"a":216,"b":225}]}],"statement":"update public.club_members m set\n  status = coalesce(:status::text, m.status),\n  role = coalesce(:role::text, m.role)\nfrom public.clubs c\nwhere m.club_id = c.id\n  and c.public_id = :clubId!::uuid\n  and m.public_id = :memberId!::uuid\n  and private.can_manage_club(c.id)\nreturning m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at"};
+const updateClubMemberIR: any = {"usedParamSet":{"status":true,"role":true,"clubId":true,"memberId":true},"params":[{"name":"status","required":false,"transform":{"type":"scalar"},"locs":[{"a":53,"b":59}]},{"name":"role","required":false,"transform":{"type":"scalar"},"locs":[{"a":97,"b":101}]},{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":181,"b":188}]},{"name":"memberId","required":true,"transform":{"type":"scalar"},"locs":[{"a":216,"b":225}]}],"statement":"update public.club_members m set\n  status = coalesce(:status::text, m.status),\n  role = coalesce(:role::text, m.role)\nfrom public.clubs c\nwhere m.club_id = c.id\n  and c.public_id = :clubId!::uuid\n  and m.public_id = :memberId!::uuid\n  and private.can_manage_club(c.id)\n  and m.profile_id <> c.leader_id\nreturning m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at"};
 
 /**
  * Query generated from SQL:
@@ -608,6 +638,7 @@ const updateClubMemberIR: any = {"usedParamSet":{"status":true,"role":true,"club
  *   and c.public_id = :clubId!::uuid
  *   and m.public_id = :memberId!::uuid
  *   and private.can_manage_club(c.id)
+ *   and m.profile_id <> c.leader_id
  * returning m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at
  * ```
  */
