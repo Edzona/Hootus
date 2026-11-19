@@ -120,10 +120,11 @@ where m.profile_id = (select private.current_profile_id())
 
 /* @name LeaveClubMembership */
 with target as (select id from public.clubs where public_id = :clubId!::uuid)
-delete from public.club_members
-where club_id in (select id from target)
-  and profile_id = (select private.current_profile_id())
-returning public_id as id;
+delete from public.club_members m
+where m.club_id in (select id from target)
+  and m.profile_id = (select private.current_profile_id())
+  and not exists (select 1 from public.clubs c where c.id = m.club_id and c.leader_id = m.profile_id)
+returning m.public_id as id;
 
 /* @name GetClubMembers */
 select m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at,

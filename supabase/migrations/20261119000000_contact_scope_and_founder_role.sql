@@ -19,8 +19,15 @@ revoke all on function private.listing_contact_email(uuid) from public, anon, au
 grant execute on function private.listing_contact_email(uuid) to hootus_api;
 
 -- can_manage_club always trusts clubs.leader_id, so founders stay approved
--- managers: UpdateClubMember skips them, and earlier demotions are restored.
+-- managers: UpdateClubMember and LeaveClubMembership skip them, and earlier
+-- demotions or departures are restored.
 update public.club_members m set role = 'manager', status = 'approved'
 from public.clubs c
 where m.club_id = c.id and m.profile_id = c.leader_id
   and (m.role <> 'manager' or m.status <> 'approved');
+
+insert into public.club_members (club_id, profile_id, role, status)
+select id, leader_id, 'manager', 'approved'
+from public.clubs
+where leader_id is not null
+on conflict (club_id, profile_id) do nothing;

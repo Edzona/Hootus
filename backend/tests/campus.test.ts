@@ -139,6 +139,9 @@ test('campus API permissions and student interactions', integrationOptions, asyn
       }
       const [stored] = await owner`select role, status from public.club_members where public_id = ${founderMember.public_id}`;
       assert.deepEqual({ ...stored }, { role: 'manager', status: 'approved' });
+      assert.equal((await call(`/api/campus/clubs/${clubId}/membership`, founder.token, undefined, {}, 'DELETE')).status, 404);
+      const [kept] = await owner`select count(*)::int as count from public.club_members where public_id = ${founderMember.public_id}`;
+      assert.equal(kept.count, 1);
       const posted = await call(`/api/campus/clubs/${clubId}/posts`, founder.token, { text: 'Founder update' });
       assert.equal(posted.status, 201, JSON.stringify(posted.body));
     });

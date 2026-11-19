@@ -519,16 +519,17 @@ export interface ILeaveClubMembershipQuery {
   result: ILeaveClubMembershipResult;
 }
 
-const leaveClubMembershipIR: any = {"usedParamSet":{"clubId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":62,"b":69}]}],"statement":"with target as (select id from public.clubs where public_id = :clubId!::uuid)\ndelete from public.club_members\nwhere club_id in (select id from target)\n  and profile_id = (select private.current_profile_id())\nreturning public_id as id"};
+const leaveClubMembershipIR: any = {"usedParamSet":{"clubId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":62,"b":69}]}],"statement":"with target as (select id from public.clubs where public_id = :clubId!::uuid)\ndelete from public.club_members m\nwhere m.club_id in (select id from target)\n  and m.profile_id = (select private.current_profile_id())\n  and not exists (select 1 from public.clubs c where c.id = m.club_id and c.leader_id = m.profile_id)\nreturning m.public_id as id"};
 
 /**
  * Query generated from SQL:
  * ```
  * with target as (select id from public.clubs where public_id = :clubId!::uuid)
- * delete from public.club_members
- * where club_id in (select id from target)
- *   and profile_id = (select private.current_profile_id())
- * returning public_id as id
+ * delete from public.club_members m
+ * where m.club_id in (select id from target)
+ *   and m.profile_id = (select private.current_profile_id())
+ *   and not exists (select 1 from public.clubs c where c.id = m.club_id and c.leader_id = m.profile_id)
+ * returning m.public_id as id
  * ```
  */
 export const leaveClubMembership = new PreparedQuery<ILeaveClubMembershipParams,ILeaveClubMembershipResult>(leaveClubMembershipIR);
