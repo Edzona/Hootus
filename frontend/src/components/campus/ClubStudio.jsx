@@ -44,6 +44,16 @@ export default function ClubStudio({ clubs, events, profile, onRefresh, onNotice
   const [applyForm, setApplyForm] = useState({
     name: '', handle: '', category: ClubCategory.ArtsCulture, description: '', meeting: '', location: '', verificationNote: '',
   })
+  const settingsKey = activeClub ? JSON.stringify([
+    activeClub.id,
+    activeClub.name || '',
+    activeClub.category || ClubCategory.ArtsCulture,
+    activeClub.description || '',
+    activeClub.meeting || '',
+    activeClub.location || '',
+    activeClub.mark || '',
+    activeClub.color || ClubColor.Plum,
+  ]) : ''
 
   function showConfirmed(message) {
     setConfirmation(message)
@@ -74,18 +84,14 @@ export default function ClubStudio({ clubs, events, profile, onRefresh, onNotice
 
   useEffect(() => {
     if (activeClub?.id) loadMembers(activeClub.id)
-    if (activeClub) {
-      setSettingsForm({
-        name: activeClub.name || '',
-        category: activeClub.category || ClubCategory.ArtsCulture,
-        description: activeClub.description || '',
-        meeting: activeClub.meeting || '',
-        location: activeClub.location || '',
-        mark: activeClub.mark || '',
-        color: activeClub.color || ClubColor.Plum,
-      })
-    }
-  }, [activeClub, loadMembers])
+    else setMembers([])
+  }, [activeClub?.id, loadMembers])
+
+  useEffect(() => {
+    if (!settingsKey) return
+    const [, name, category, description, meeting, location, mark, color] = JSON.parse(settingsKey)
+    setSettingsForm({ name, category, description, meeting, location, mark, color })
+  }, [settingsKey])
 
   async function updateMember(memberId, body, message) {
     if (!activeClub) return
