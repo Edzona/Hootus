@@ -38,6 +38,48 @@ const getUsersIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{
 export const getUsers = new PreparedQuery<IGetUsersParams,IGetUsersResult>(getUsersIR);
 
 
+/** 'GetListings' parameters type */
+export interface IGetListingsParams {
+  limit: number;
+  offset: number;
+}
+
+/** 'GetListings' return type */
+export interface IGetListingsResult {
+  author_name: string | null;
+  category: string;
+  created_at: Date;
+  description: string;
+  id: string;
+  image_urls: stringArray;
+  location: string | null;
+  price_jpy: number | null;
+  status: string;
+  title: string;
+  updated_at: Date;
+}
+
+/** 'GetListings' query type */
+export interface IGetListingsQuery {
+  params: IGetListingsParams;
+  result: IGetListingsResult;
+}
+
+const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":261,"b":267}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":281,"b":288}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name\nfrom public.listings\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select public_id as id, category, title, description,
+ * price_jpy::double precision as price_jpy, image_urls, location, status,
+ * created_at, updated_at, private.author_name(author_id) as author_name
+ * from public.listings
+ * order by created_at desc, listings.id limit :limit!::int offset :offset!::int
+ * ```
+ */
+export const getListings = new PreparedQuery<IGetListingsParams,IGetListingsResult>(getListingsIR);
+
+
 /** 'SetUserRole' parameters type */
 export interface ISetUserRoleParams {
   id: string;

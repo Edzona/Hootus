@@ -32,6 +32,7 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
     })).body.data;
     const routes: [string, string, unknown?][] = [
       ['GET', '/api/admin/users'],
+      ['GET', '/api/admin/listings'],
       ['PATCH', `/api/admin/users/${users[UserRole.Student].publicId}`, { role: UserRole.Admin }],
       ['PATCH', `/api/admin/listings/${listing.id}`, { status: ListingStatus.Closed }],
       ['DELETE', `/api/admin/listings/${listing.id}`],
@@ -129,6 +130,25 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.equal((await call(`/api/admin/listings/${randomUUID()}`, admin, { status: ListingStatus.Closed }, {}, 'PATCH')).status, 404);
       assert.equal((await call(`/api/admin/feed/${randomUUID()}`, admin, undefined, {}, 'DELETE')).status, 404);
       assert.equal((await call(`/api/admin/listings/${listing.id}`, admin, {}, {}, 'PATCH')).status, 400);
+    });
+
+    await t.test('admin lists active and closed listings with public author data only', async () => {
+      const closedListing = (await call('/api/listings', users[UserRole.Student].token, {
+        category: ListingCategory.Sales, title: 'Desk already sold',
+      })).body.data;
+      const closed = await call(`/api/listings/${closedListing.id}/status`, users[UserRole.Student].token, { status: ListingStatus.Closed }, {}, 'PATCH');
+      assert.equal(closed.status, 200, JSON.stringify(closed.body));
+
+      const result = await call('/api/admin/listings?limit=100', admin);
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      const activeRow = result.body.data.find((row: { id: string }) => row.id === listing.id);
+      const closedRow = result.body.data.find((row: { id: string }) => row.id === closedListing.id);
+      assert.equal(activeRow.status, ListingStatus.Active);
+      assert.equal(closedRow.status, ListingStatus.Closed);
+      assert.deepEqual(closedRow.author, { name: 'Test student' });
+      assert(!('author_id' in closedRow) && !('email' in closedRow));
+      assert(!JSON.stringify(result.body).includes(users[UserRole.Student].email));
+      assert.equal((await call('/api/admin/listings?limit=101', admin)).status, 400);
     });
 
     await t.test('admin moderates and deletes another member\'s listing', async () => {

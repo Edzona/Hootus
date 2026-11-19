@@ -34,6 +34,13 @@ export const getUsers: RequestHandler = async (req, res) => {
   res.json({ data });
 };
 
+export const getListings: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { limit, offset } = res.locals.query as z.infer<typeof pageSchema>;
+  const data = await req.db(tx => q.getListings.run({ limit, offset }, tx));
+  res.json({ data: data.map(withAuthor) });
+};
+
 export const setUserRole: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const { id } = res.locals.params as z.infer<typeof adminIdParams>;
