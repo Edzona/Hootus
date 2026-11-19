@@ -65,7 +65,7 @@ export default function Moderation() {
     if (offset === 0) setLoading(true)
     else setLoadingMore(true)
     setError('')
-    const hidden = hiddenFilter === 'all' ? '' : `&hidden=${hiddenFilter === 'hidden'}`
+    const hidden = hiddenFilter === 'all' ? '' : `&hidden=${hiddenFilter}`
     try {
       const page = await apiRequest(`/moderation/content?kind=${contentKind}&limit=${PAGE}&offset=${offset}${hidden}`)
       setContent(current => offset === 0 ? page : [...current, ...page.filter(row => !current.some(item => item.id === row.id))])
