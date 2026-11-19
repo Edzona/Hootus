@@ -193,47 +193,49 @@ export async function sendDailyDigests(batchSize = BATCH_SIZE) {
   // Failed claims are reverted only after the run, so nobody is retried within it.
   const failures: { id: string; since: Date }[] = [];
 
-  while (true) {
-    const batch = await withServer(tx => q.claimDigests.run({ batch: batchSize }, tx));
-    if (batch.length === 0) break;
+  try {
+    while (true) {
+      const batch = await withServer(tx => q.claimDigests.run({ batch: batchSize }, tx));
+      if (batch.length === 0) break;
 
-    for (const row of batch) {
-      const listings = digestListingSchema.parse(row.listings);
-      const clubPosts = digestClubPostSchema.parse(row.club_posts);
-      const offers = digestOfferSchema.parse(row.offers);
-      const token = signUnsubscribeToken(row.profile_id);
-      const unsubscribeUrl = `${baseApi}/api/digest/unsubscribe?token=${encodeURIComponent(token)}`;
-      const email = formatDigestEmail({
-        fullName: row.full_name,
-        total: row.total,
-        listings,
-        clubPosts,
-        offers,
-        activityUrl: env.NOTIFICATION_LINK_URL,
-        unsubscribeUrl,
-      });
-
-      try {
-        await transporter.sendMail({
-          from: env.SMTP_FROM,
-          to: row.email,
-          subject: email.subject,
-          text: email.text,
-          html: email.html,
-          headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>` },
+      for (const row of batch) {
+        const listings = digestListingSchema.parse(row.listings);
+        const clubPosts = digestClubPostSchema.parse(row.club_posts);
+        const offers = digestOfferSchema.parse(row.offers);
+        const token = signUnsubscribeToken(row.profile_id);
+        const unsubscribeUrl = `${baseApi}/api/digest/unsubscribe?token=${encodeURIComponent(token)}`;
+        const email = formatDigestEmail({
+          fullName: row.full_name,
+          total: row.total,
+          listings,
+          clubPosts,
+          offers,
+          activityUrl: env.NOTIFICATION_LINK_URL,
+          unsubscribeUrl,
         });
-        sent += 1;
-      } catch (error) {
-        failures.push({ id: row.profile_id, since: row.since });
-        logger.warn('digest send failed: %s', error instanceof Error ? error.name : 'unknown');
+
+        try {
+          await transporter.sendMail({
+            from: env.SMTP_FROM,
+            to: row.email,
+            subject: email.subject,
+            text: email.text,
+            html: email.html,
+            headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>` },
+          });
+          sent += 1;
+        } catch (error) {
+          failures.push({ id: row.profile_id, since: row.since });
+          logger.warn('digest send failed: %s', error instanceof Error ? error.name : 'unknown');
+        }
       }
+
+      if (batch.length < batchSize) break;
     }
-
-    if (batch.length < batchSize) break;
-  }
-
-  for (const failure of failures) {
-    await withServer(tx => q.revertDigest.run(failure, tx)).catch(() => {});
+  } finally {
+    for (const failure of failures) {
+      await withServer(tx => q.revertDigest.run(failure, tx)).catch(() => {});
+    }
   }
   return { enabled: true, sent, failed: failures.length };
 }
