@@ -61,8 +61,12 @@ test('profile privacy and uniqueness', integrationOptions, async t => {
         assert.equal(saved.body.data.bio, 'Second-year CS student');
         assert.equal(saved.body.data.avatar_url, photo);
         assert.equal((await fetch(photo)).status, 200, 'Saved photo URL is publicly viewable');
+        const digest = await call('/api/profile/me', student.token, { email_digest: true }, {}, 'PATCH');
+        assert.equal(digest.status, 200, JSON.stringify(digest.body));
+        assert.equal(digest.body.data.email_digest, true);
         const bioOnly = await call('/api/profile/me', student.token, { bio: 'Updated bio' }, {}, 'PATCH');
         assert.equal(bioOnly.body.data.avatar_url, photo, 'Omitted fields stay unchanged');
+        assert.equal(bioOnly.body.data.email_digest, true, 'Omitted digest settings stay unchanged');
 
         // Photos must come from the caller's own folder in our bucket.
         const otherFolder = photo.replace(student.id, other.id);
