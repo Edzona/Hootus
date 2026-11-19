@@ -503,6 +503,35 @@ const requestClubMembershipIR: any = {"usedParamSet":{"clubId":true},"params":[{
 export const requestClubMembership = new PreparedQuery<IRequestClubMembershipParams,IRequestClubMembershipResult>(requestClubMembershipIR);
 
 
+/** 'ClearRejectedClubMembership' parameters type */
+export interface IClearRejectedClubMembershipParams {
+  clubId: string;
+}
+
+/** 'ClearRejectedClubMembership' return type */
+export type IClearRejectedClubMembershipResult = void;
+
+/** 'ClearRejectedClubMembership' query type */
+export interface IClearRejectedClubMembershipQuery {
+  params: IClearRejectedClubMembershipParams;
+  result: IClearRejectedClubMembershipResult;
+}
+
+const clearRejectedClubMembershipIR: any = {"usedParamSet":{"clubId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":62,"b":69}]}],"statement":"with target as (select id from public.clubs where public_id = :clubId!::uuid)\ndelete from public.club_members m\nwhere m.club_id in (select id from target)\n  and m.profile_id = (select private.current_profile_id())\n  and m.status = 'rejected'"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * with target as (select id from public.clubs where public_id = :clubId!::uuid)
+ * delete from public.club_members m
+ * where m.club_id in (select id from target)
+ *   and m.profile_id = (select private.current_profile_id())
+ *   and m.status = 'rejected'
+ * ```
+ */
+export const clearRejectedClubMembership = new PreparedQuery<IClearRejectedClubMembershipParams,IClearRejectedClubMembershipResult>(clearRejectedClubMembershipIR);
+
+
 /** 'LeaveClubMembership' parameters type */
 export interface ILeaveClubMembershipParams {
   clubId: string;

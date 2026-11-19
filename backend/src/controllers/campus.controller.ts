@@ -4,7 +4,7 @@ import {
   getCampusClubs, getCampusEvents, getCampusPosts, getSavedCampusPosts, getCampusListings,
   setCampusFollow, setCampusLike, setCampusSave, setCampusRsvp,
   getPublishableClub, createCampusPost, createCampusEvent,
-  requestClubMembership, leaveClubMembership, getClubMembers, updateClubMember, removeClubMember,
+  requestClubMembership, clearRejectedClubMembership, leaveClubMembership, getClubMembers, updateClubMember, removeClubMember,
   createClubRequest, getMyClubRequests, updateClub as editClub,
 } from '../generated/campus.queries.js';
 import { assertAuthenticated } from '../helpers/auth.js';
@@ -160,7 +160,10 @@ export const publishCampusEvent: RequestHandler = async (req, res) => {
 export const requestMembership: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
   const { clubId } = res.locals.params as z.infer<typeof campusClubParams>;
-  const [row] = await req.db(tx => requestClubMembership.run({ clubId }, tx));
+  const [row] = await req.db(async tx => {
+    await clearRejectedClubMembership.run({ clubId }, tx);
+    return requestClubMembership.run({ clubId }, tx);
+  });
   if (!row) throw notFound('Club not found.');
   res.status(201).json({ data: row });
 };

@@ -118,6 +118,13 @@ join target t on t.id = m.club_id
 where m.profile_id = (select private.current_profile_id())
   and not exists (select 1 from inserted);
 
+/* @name ClearRejectedClubMembership */
+with target as (select id from public.clubs where public_id = :clubId!::uuid)
+delete from public.club_members m
+where m.club_id in (select id from target)
+  and m.profile_id = (select private.current_profile_id())
+  and m.status = 'rejected';
+
 /* @name LeaveClubMembership */
 with target as (select id from public.clubs where public_id = :clubId!::uuid)
 delete from public.club_members m

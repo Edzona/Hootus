@@ -119,6 +119,33 @@ test('campus API permissions and student interactions', integrationOptions, asyn
       assert.equal(cleared.posts.find((row: { id: string }) => row.id === postId).likes, 0);
       assert(!cleared.savedPosts.some((row: { id: string }) => row.id === postId));
     });
+
+    await t.test('rejected members can submit a fresh pending request', async () => {
+      const manager = users[UserRole.ClubLeader];
+      const member = users[UserRole.Student];
+      const clubId = randomUUID();
+      campusClubIds.push(clubId);
+      await owner`insert into public.clubs (public_id, slug, name, handle, category, leader_id)
+        select ${clubId}, ${`resubmit-${clubId}`}, 'Resubmission club', ${`resubmit-${clubId}`}, 'Music', id
+        from public.profiles where auth_user_id = ${manager.id}`;
+
+      const membershipPath = `/api/campus/clubs/${clubId}/membership`;
+      const firstRequest = await call(membershipPath, member.token, undefined, {}, 'POST');
+      assert.equal(firstRequest.status, 201, JSON.stringify(firstRequest.body));
+      assert.equal(firstRequest.body.data.status, 'pending');
+      const rejected = await call(`/api/campus/clubs/${clubId}/members/${firstRequest.body.data.id}`, manager.token, { status: 'rejected' }, {}, 'PATCH');
+      assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
+      assert.equal(rejected.body.data.status, 'rejected');
+
+      const secondRequest = await call(membershipPath, member.token, undefined, {}, 'POST');
+      assert.equal(secondRequest.status, 201, JSON.stringify(secondRequest.body));
+      assert.equal(secondRequest.body.data.status, 'pending');
+      const members = await call(`/api/campus/clubs/${clubId}/members`, manager.token);
+      assert.equal(members.status, 200, JSON.stringify(members.body));
+      assert(members.body.data.some((row: { id: string; status: string }) =>
+        row.id === secondRequest.body.data.id && row.status === 'pending'));
+    });
+
     await t.test('campus: founders cannot be demoted out of club management', async () => {
       const founder = users[UserRole.ClubLeader];
       const manager = users[UserRole.Student];
