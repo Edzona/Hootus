@@ -60,3 +60,40 @@ from private.create_partner_account(
   :email!::text, :contactName!::text, :orgName!::text, :handle!::text,
   :category!::text, :description!::text, :hours!::text, :location!::text
 );
+
+/* @name GetAdminClubs */
+select c.public_id as id, c.slug, c.name, c.handle, c.mark, c.color, c.category, c.org_type,
+  c.description, c.meeting, c.location,
+  jsonb_build_object('name', private.author_name(c.leader_id)) as founder,
+  private.club_member_count(c.id) as members,
+  (select count(*)::int from public.club_members m
+   where m.club_id = c.id and m.status = 'pending') as pending,
+  c.created_at
+from public.clubs c
+order by c.name, c.id
+limit :limit!::int offset :offset!::int;
+
+/* @name GetAdminClub */
+select c.public_id as id, c.slug, c.name, c.handle, c.mark, c.color, c.category, c.org_type,
+  c.description, c.meeting, c.location,
+  jsonb_build_object('name', private.author_name(c.leader_id)) as founder,
+  private.club_member_count(c.id) as members,
+  (select count(*)::int from public.club_members m
+   where m.club_id = c.id and m.status = 'pending') as pending,
+  c.created_at
+from public.clubs c
+where c.public_id = :id!::uuid;
+
+/* @name CreateAdminClub */
+select id from private.admin_create_club(
+  :name!::text, :handle!::text, :category!::text, :description!::text,
+  :meeting!::text, :location!::text, :founderId!::uuid
+);
+
+/* @name TransferClubFounder */
+select id from private.transfer_club_founder(:clubId!::uuid, :memberId!::uuid);
+
+/* @name DeleteAdminClub */
+delete from public.clubs
+where public_id = :id!::uuid and org_type = 'club'
+returning public_id as id;

@@ -108,7 +108,7 @@ export interface IGetListingsQuery {
   result: IGetListingsResult;
 }
 
-const getListingsIR: any = {"usedParamSet":{"categories":true,"limit":true,"offset":true},"params":[{"name":"categories","required":false,"transform":{"type":"scalar"},"locs":[{"a":312,"b":322},{"a":358,"b":368}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":424,"b":430}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":444,"b":451}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name,\n(author_id = (select private.current_profile_id())) as is_mine\nfrom public.listings\nwhere status = 'active'\n  and (:categories::text[] is null or category = any(:categories::text[]))\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
+const getListingsIR: any = {"usedParamSet":{"categories":true,"limit":true,"offset":true},"params":[{"name":"categories","required":false,"transform":{"type":"scalar"},"locs":[{"a":334,"b":344},{"a":380,"b":390}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":446,"b":452}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":466,"b":473}]}],"statement":"select public_id as id, category, title, description,\nprice_jpy::double precision as price_jpy, image_urls, location, status,\ncreated_at, updated_at, private.author_name(author_id) as author_name,\n(author_id = (select private.current_profile_id())) as is_mine\nfrom public.listings\nwhere status = 'active' and hidden_at is null\n  and (:categories::text[] is null or category = any(:categories::text[]))\norder by created_at desc, listings.id limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -118,7 +118,7 @@ const getListingsIR: any = {"usedParamSet":{"categories":true,"limit":true,"offs
  * created_at, updated_at, private.author_name(author_id) as author_name,
  * (author_id = (select private.current_profile_id())) as is_mine
  * from public.listings
- * where status = 'active'
+ * where status = 'active' and hidden_at is null
  *   and (:categories::text[] is null or category = any(:categories::text[]))
  * order by created_at desc, listings.id limit :limit!::int offset :offset!::int
  * ```
@@ -182,7 +182,7 @@ export interface IGetMySoldListingsQuery {
   result: IGetMySoldListingsResult;
 }
 
-const getMySoldListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":320,"b":326}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":340,"b":347}]}],"statement":"-- The caller's successful listings, newest first, for their profile.\nselect public_id as id, category, title,\nprice_jpy::double precision as price_jpy, image_urls, ended_at\nfrom public.listings\nwhere author_id = (select private.current_profile_id()) and status = 'sold'\norder by ended_at desc nulls last, id desc\nlimit :limit!::int offset :offset!::int"};
+const getMySoldListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":342,"b":348}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":362,"b":369}]}],"statement":"-- The caller's successful listings, newest first, for their profile.\nselect public_id as id, category, title,\nprice_jpy::double precision as price_jpy, image_urls, ended_at\nfrom public.listings\nwhere author_id = (select private.current_profile_id()) and status = 'sold' and hidden_at is null\norder by ended_at desc nulls last, id desc\nlimit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -191,7 +191,7 @@ const getMySoldListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"p
  * select public_id as id, category, title,
  * price_jpy::double precision as price_jpy, image_urls, ended_at
  * from public.listings
- * where author_id = (select private.current_profile_id()) and status = 'sold'
+ * where author_id = (select private.current_profile_id()) and status = 'sold' and hidden_at is null
  * order by ended_at desc nulls last, id desc
  * limit :limit!::int offset :offset!::int
  * ```
