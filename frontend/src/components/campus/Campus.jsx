@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
 import Icon from './Icon'
 import ClubStudio from './ClubStudio'
@@ -131,26 +131,36 @@ export default function Campus({ hash, notif }) {
     follow, save, like: toggleLiked, busy, notice, setNotice, incomingCount, revealPosts } = campus
   const [profile, setProfile] = useState(null)
   const [offers, setOffers] = useState([])
+  const [tab, setTab] = useState('discover')
   const notifications = notif?.notifications ?? []
   const unreadCount = notif?.unreadCount ?? 0
   const initials = (profile?.full_name || 'TUJ Student').split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('')
   const userAvatarUrl = profile?.avatar_url
   const userInitials = profile ? initials : 'You'
   const userName = profile?.full_name || 'Your profile'
+  const loadOffers = useCallback(async (signal) => {
+    try {
+      const rows = await apiRequest('/feed?limit=30', { signal })
+      setOffers(rows.filter(item => item.kind === 'perk'))
+    } catch {}
+  }, [])
+
   useEffect(() => {
     if (campus.signInRequired || !campus.hasData) { setProfile(null); setOffers([]); return }
     const controller = new AbortController()
     apiRequest('/profile/me', { signal: controller.signal })
       .then(setProfile)
       .catch(() => {})
-    apiRequest('/feed?limit=30', { signal: controller.signal })
-      .then((rows) => setOffers(rows.filter(item => item.kind === 'perk')))
-      .catch(() => {})
+    loadOffers(controller.signal)
     return () => controller.abort()
-  }, [campus.signInRequired, campus.hasData])
+  }, [campus.signInRequired, campus.hasData, loadOffers])
+
+  useEffect(() => {
+    if (tab === 'events-offers' && !campus.signInRequired && campus.hasData) loadOffers()
+  }, [tab, campus.signInRequired, campus.hasData, loadOffers])
+
   const clubById = (id) => clubs.find(club => club.id === id || club.slug === id)
   const eventById = (id) => events.find(event => event.id === id || event.slug === id)
-  const [tab, setTab] = useState('discover')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
   const mainRef = useRef(null)
