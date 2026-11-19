@@ -175,7 +175,8 @@ begin
 
   insert into public.club_members (club_id, profile_id, role, status)
   values (new_club_id, new_profile_id, 'manager', 'approved')
-  on conflict (club_id, profile_id) do update set role = 'manager', status = 'approved';
+  on conflict on constraint club_members_club_id_profile_id_key
+  do update set role = 'manager', status = 'approved';
 
   return query
   select new_profile_public_id, new_club_public_id, clean_email, btrim(org_name), clean_handle, org_category;
