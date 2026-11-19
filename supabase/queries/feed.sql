@@ -9,4 +9,5 @@ private.author_name(author_id) as author_name;
 select public_id as id, kind, title, body, image_urls, room_number, meeting_time,
 business_name, coupon_code, expires_at, created_at, updated_at,
 private.author_name(author_id) as author_name from public.feed_posts
+where hidden_at is null
 order by created_at desc, feed_posts.id limit :limit!::int offset :offset!::int;

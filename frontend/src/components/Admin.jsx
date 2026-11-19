@@ -3,10 +3,11 @@ import { Wordmark } from './Logo'
 import { apiRequest } from '../lib/api'
 import { formatShortDate } from '../lib/format'
 import { PartnerCategory, partnerCategories } from '../../../backend/src/types/clubOptions'
+import ClubDesk from './admin/ClubDesk'
 
-const roles = { student: 'Student', club_leader: 'Club leader', partner: 'Partner', admin: 'Admin' }
+const roles = { student: 'Student', club_leader: 'Club leader', partner: 'Partner', admin: 'Admin', moderator: 'Moderator' }
 const statuses = ['active', 'sold', 'closed']
-const tabs = [['users', 'Users'], ['clubRequests', 'Club requests'], ['partners', 'Partners'], ['listings', 'Listings'], ['feed', 'Feed posts']]
+const tabs = [['users', 'Users'], ['clubRequests', 'Club requests'], ['clubs', 'Clubs'], ['partners', 'Partners'], ['listings', 'Listings'], ['feed', 'Feed posts']]
 const sources = { users: '/admin/users', clubRequests: '/admin/club-requests', listings: '/admin/listings', feed: '/feed' }
 const PAGE = 100
 const fetchPage = (list, offset, signal) => apiRequest(`${sources[list]}?limit=${PAGE}&offset=${offset}`, { signal })
@@ -192,6 +193,7 @@ export default function Admin() {
                     </div>
                   </>
                 )} />}
+                {tab === 'clubs' && <ClubDesk users={data.users} moreUsers={more.users} loadingUsers={busy === 'more:users'} onLoadMoreUsers={() => loadMore('users')} />}
                 {tab === 'partners' && (
                   <form onSubmit={createPartner} className="space-y-4 p-6">
                     <h2 className="font-display text-2xl font-extrabold">Create third-party partner account</h2>

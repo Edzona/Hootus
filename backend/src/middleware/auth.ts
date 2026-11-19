@@ -4,7 +4,8 @@ import { ErrorCode } from '../types/errorCode.js';
 import type { RequestHandler } from 'express';
 import { supabase } from '../config/supabase.js';
 import { withUser, type UserDatabase } from '../config/database.js';
-import { userRoleSchema, type UserRole } from '../types/domain.js';
+import { userRoleSchema } from '../types/domainSchemas.js';
+import type { UserRole } from '../types/domain.js';
 import { HttpError } from '../helpers/errors.js';
 
 export const requireAuth: RequestHandler = async (req, _res, next) => {

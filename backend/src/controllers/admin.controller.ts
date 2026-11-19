@@ -7,7 +7,9 @@ import { HttpError, notFound } from '../helpers/errors.js';
 import {
   orgDescriptionSchema, orgHandleSchema, orgNameSchema, orgTextSchema, pageSchema,
 } from '../helpers/validation.js';
-import { ListingStatus, PartnerCategory, ReviewStatus, UserRole } from '../types/domain.js';
+import {
+  ClubCategory, ListingStatus, PartnerCategory, ReviewStatus, UserRole,
+} from '../types/domain.js';
 import { ErrorCode } from '../types/errorCode.js';
 
 const hasChange = (body: object) => Object.keys(body).length > 0;
@@ -123,4 +125,66 @@ export const createPartner: RequestHandler = async (req, res) => {
   const body = res.locals.body as z.infer<typeof createPartnerBody>;
   const [created] = await req.db(tx => q.createPartnerAccount.run(body, tx));
   res.status(201).json({ data: created });
+};
+
+export const adminClubBody = z.strictObject({
+  name: orgNameSchema,
+  handle: orgHandleSchema,
+  category: z.enum(ClubCategory),
+  description: orgDescriptionSchema,
+  meeting: orgTextSchema,
+  location: orgTextSchema,
+  founderId: z.uuid(),
+});
+
+export const transferClubFounderBody = z.strictObject({ memberId: z.uuid() });
+
+export const getAdminClubs: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const page = res.locals.query as z.infer<typeof pageSchema>;
+  const data = await req.db(tx => q.getAdminClubs.run(page, tx));
+  res.json({ data });
+};
+
+export const getAdminClub: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof adminIdParams>;
+  const [club] = await req.db(tx => q.getAdminClub.run({ id }, tx));
+  if (!club) throw notFound('Club not found.');
+  res.json({ data: club });
+};
+
+export const createAdminClub: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const body = res.locals.body as z.infer<typeof adminClubBody>;
+  const club = await req.db(async tx => {
+    const [created] = await q.createAdminClub.run(body, tx);
+    if (!created?.id) throw notFound('Founder not found.');
+    const [row] = await q.getAdminClub.run({ id: created.id }, tx);
+    if (!row) throw notFound('Club not found.');
+    return row;
+  });
+  res.status(201).json({ data: club });
+};
+
+export const transferAdminClubFounder: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof adminIdParams>;
+  const { memberId } = res.locals.body as z.infer<typeof transferClubFounderBody>;
+  const club = await req.db(async tx => {
+    const [transferred] = await q.transferClubFounder.run({ clubId: id, memberId }, tx);
+    if (!transferred) throw notFound('Club or approved member not found.');
+    const [row] = await q.getAdminClub.run({ id }, tx);
+    if (!row) throw notFound('Club not found.');
+    return row;
+  });
+  res.json({ data: club });
+};
+
+export const deleteAdminClub: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof adminIdParams>;
+  const [deleted] = await req.db(tx => q.deleteAdminClub.run({ id }, tx));
+  if (!deleted) throw notFound('Club not found.');
+  res.json({ data: deleted });
 };

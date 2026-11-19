@@ -1,4 +1,3 @@
-import { z } from 'zod';
 export { CampusAction } from './campusAction.js';
 export {
   ClubCategory, PartnerCategory, ClubColor, EventPoster, MemberRole, ReviewStatus,
@@ -10,6 +9,7 @@ export enum UserRole {
   ClubLeader = 'club_leader',
   Partner = 'partner',
   Admin = 'admin',
+  Moderator = 'moderator',
 }
 
 export enum ListingCategory {
@@ -29,5 +29,14 @@ export enum FeedPostKind {
   Perk = 'perk',
 }
 
-export const userRoleSchema = z.enum(UserRole);
-export const listingCategorySchema = z.enum(ListingCategory);
+export enum ModerationTarget {
+  Listing = 'listing',
+  FeedPost = 'feed_post',
+  ClubPost = 'club_post',
+}
+
+export enum ReportStatus {
+  Open = 'open',
+  Resolved = 'resolved',
+  Dismissed = 'dismissed',
+}

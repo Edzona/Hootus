@@ -10,6 +10,7 @@ import { adminRoutes } from './admin.routes.js';
 import { UserRole } from '../types/domain.js';
 import { notificationsRoutes } from './notifications.routes.js';
 import { digestRoutes } from './digest.routes.js';
+import { moderationRoutes, reportsRoutes } from './moderation.routes.js';
 
 export const routes = Router();
 const protectedRoutes = Router();
@@ -27,4 +28,6 @@ protectedRoutes.use('/profile', profileRoutes);
 protectedRoutes.use('/campus', campusRoutes);
 protectedRoutes.use('/admin', requireRole([UserRole.Admin]), adminRoutes);
 protectedRoutes.use('/notifications', notificationsRoutes);
+protectedRoutes.use('/reports', reportsRoutes);
+protectedRoutes.use('/moderation', requireRole([UserRole.Admin, UserRole.Moderator]), moderationRoutes);
 routes.use(protectedRoutes);

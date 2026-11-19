@@ -12,7 +12,8 @@ import { assertOwnsPhotos, extractPhotoNames, imageUrlsSchema, pageSchema } from
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
 import { assertAuthenticated } from '../helpers/auth.js';
-import { listingCategorySchema, ListingStatus } from '../types/domain.js';
+import { ListingStatus } from '../types/domain.js';
+import { listingCategorySchema } from '../types/domainSchemas.js';
 import { HttpError } from '../helpers/errors.js';
 import { ErrorCode } from '../types/errorCode.js';
 

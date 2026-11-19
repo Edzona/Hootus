@@ -3,6 +3,8 @@ import { apiRequest } from '../lib/api'
 import { formatPrice } from '../lib/format'
 import { emptyListingForm, listingToForm, saveListing } from '../lib/listings'
 import ListingForm from './ListingForm'
+import ReportButton from './ReportButton'
+import { ModerationTarget } from '../../../backend/src/types/domain'
 import { supabase } from '../lib/supabase'
 
 const categoryLabels = { sales: 'For sale', gigs: 'Gigs', housing: 'Housing' }
@@ -27,6 +29,7 @@ export default function ListingsHub({ mode }) {
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [filter, setFilter] = useState('all')
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -218,6 +221,7 @@ export default function ListingsHub({ mode }) {
             {error}
           </p>
         )}
+        {notice && <p role="status" className="mb-6 border-2 border-ink bg-sun/50 p-4 font-mono text-sm">{notice}</p>}
 
         {signedIn === false && (
           <div className="border-2 border-ink bg-white p-8 shadow-hard">
@@ -275,44 +279,40 @@ export default function ListingsHub({ mode }) {
         {signedIn && !loading && listings.length > 0 && (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {listings.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSelected(item)}
-                className="group flex flex-col border-2 border-ink bg-white text-left shadow-hard transition-transform hover:-translate-y-1"
-              >
-                {item.image_urls?.[0] && (
-                  <img
-                    src={item.image_urls[0]}
-                    alt={item.title}
-                    className="h-48 w-full border-b-2 border-ink object-cover"
-                  />
-                )}
-                <div className="flex flex-1 flex-col p-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`inline-block border-2 border-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${accentBg}`}>
-                      {categoryLabels[item.category] || item.category}
-                    </span>
-                    {item.is_mine && (
-                      <span className="border border-ink bg-sun px-2 py-0.5 font-mono text-[10px] font-bold uppercase">
-                        Yours
-                      </span>
-                    )}
-                  </div>
-                  <h2 className="mt-3 font-display text-xl font-bold leading-tight group-hover:underline">
-                    {item.title}
-                  </h2>
-                  {item.description && (
-                    <p className="mt-1.5 line-clamp-2 text-sm text-ink/65">{item.description}</p>
+              <article key={item.id} className="flex flex-col border-2 border-ink bg-white shadow-hard transition-transform hover:-translate-y-1">
+                <button type="button" onClick={() => setSelected(item)} className="group flex flex-1 flex-col text-left">
+                  {item.image_urls?.[0] && (
+                    <img src={item.image_urls[0]} alt={item.title} className="h-48 w-full border-b-2 border-ink object-cover" />
                   )}
-                  <div className="mt-auto pt-4">
-                    <p className="font-mono text-base font-bold">{formatPrice(item.price_jpy, item.category)}</p>
-                    <p className="mt-1 font-mono text-xs text-ink/60">
-                      {item.author?.name || 'TUJ Student'}{item.location ? ` · ${item.location}` : ''}
-                    </p>
+                  <div className="flex flex-1 flex-col p-5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`inline-block border-2 border-ink px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${accentBg}`}>
+                        {categoryLabels[item.category] || item.category}
+                      </span>
+                      {item.is_mine && (
+                        <span className="border border-ink bg-sun px-2 py-0.5 font-mono text-[10px] font-bold uppercase">
+                          Yours
+                        </span>
+                      )}
+                    </div>
+                    <h2 className="mt-3 font-display text-xl font-bold leading-tight group-hover:underline">
+                      {item.title}
+                    </h2>
+                    {item.description && (
+                      <p className="mt-1.5 line-clamp-2 text-sm text-ink/65">{item.description}</p>
+                    )}
+                    <div className="mt-auto pt-4">
+                      <p className="font-mono text-base font-bold">{formatPrice(item.price_jpy, item.category)}</p>
+                      <p className="mt-1 font-mono text-xs text-ink/60">
+                        {item.author?.name || 'TUJ Student'}{item.location ? ` · ${item.location}` : ''}
+                      </p>
+                    </div>
                   </div>
+                </button>
+                <div className="border-t border-ink/20 px-5 py-2 text-right">
+                  <ReportButton kind={ModerationTarget.Listing} id={item.id} onNotice={setNotice} className="font-mono text-[10px] uppercase tracking-widest text-ink/60 underline underline-offset-4 hover:text-cherry" />
                 </div>
-              </button>
+              </article>
             ))}
           </div>
         )}
@@ -473,6 +473,9 @@ export default function ListingsHub({ mode }) {
                 })()}
               </div>
             )}
+            <div className="mt-6 border-t-2 border-ink/20 pt-4 text-right">
+              <ReportButton kind={ModerationTarget.Listing} id={selected.id} onNotice={setNotice} className="font-mono text-xs uppercase tracking-widest text-ink/60 underline underline-offset-4 hover:text-cherry" />
+            </div>
           </div>
         </div>
       )}

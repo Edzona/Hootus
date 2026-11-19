@@ -5,6 +5,7 @@ import {
   adminIdParams, deleteFeedPost, deleteListing, getListings, getUsers, moderateFeedBody, moderateFeedPost, moderateListing,
   moderateListingBody, setUserRole, setUserRoleBody, getClubRequests, reviewClubRequest, reviewClubRequestBody,
   createPartner, createPartnerBody,
+  adminClubBody, createAdminClub, deleteAdminClub, getAdminClub, getAdminClubs, transferAdminClubFounder, transferClubFounderBody,
 } from '../controllers/admin.controller.js';
 
 // Mounted behind requireRole([UserRole.Admin]) in routes/index.ts.
@@ -20,3 +21,8 @@ adminRoutes.delete('/feed/:id', validate(adminIdParams, 'params'), deleteFeedPos
 adminRoutes.get('/club-requests', validate(pageSchema, 'query'), getClubRequests);
 adminRoutes.patch('/club-requests/:id', validate(adminIdParams, 'params'), validate(reviewClubRequestBody), reviewClubRequest);
 adminRoutes.post('/partners', validate(createPartnerBody), createPartner);
+adminRoutes.get('/clubs', validate(pageSchema, 'query'), getAdminClubs);
+adminRoutes.get('/clubs/:id', validate(adminIdParams, 'params'), getAdminClub);
+adminRoutes.post('/clubs', validate(adminClubBody), createAdminClub);
+adminRoutes.patch('/clubs/:id/founder', validate(adminIdParams, 'params'), validate(transferClubFounderBody), transferAdminClubFounder);
+adminRoutes.delete('/clubs/:id', validate(adminIdParams, 'params'), deleteAdminClub);

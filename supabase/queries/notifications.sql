@@ -7,9 +7,9 @@ select n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.r
   cp.public_id as club_post, left(cp.body, 120) as club_post_body,
   ce.public_id as club_event, ce.title as club_event_title
 from public.notifications n
-left join public.listings l on l.id = n.listing_id
+left join public.listings l on l.id = n.listing_id and l.hidden_at is null
 left join public.clubs c on c.id = n.club_id
-left join public.club_posts cp on cp.id = n.club_post_id
+left join public.club_posts cp on cp.id = n.club_post_id and cp.hidden_at is null
 left join public.club_events ce on ce.id = n.club_event_id
 order by n.updated_at desc, n.id desc
 limit :limit!::int offset :offset!::int;

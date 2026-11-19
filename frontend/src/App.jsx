@@ -11,6 +11,7 @@ import FinalCta from './components/FinalCta'
 import Footer from './components/Footer'
 import AccountStatus from './components/AccountStatus'
 import Admin from './components/Admin'
+import Moderation from './components/Moderation'
 import Campus from './components/campus/Campus'
 import HubNav from './components/HubNav'
 import Marketplace from './components/Marketplace'
@@ -71,6 +72,7 @@ export default function App() {
   )
 
   if (hash.startsWith('#/admin')) return <>{<Admin />}{toast}</>
+  if (hash.startsWith('#/moderation')) return <><Moderation />{toast}</>
 
   if (hash.startsWith('#/marketplace')) return <><HubNav hash={hash} unreadCount={notif.unreadCount} /><Marketplace />{toast}</>
   if (hash.startsWith('#/real-estate')) return <><HubNav hash={hash} unreadCount={notif.unreadCount} /><RealEstate />{toast}</>
