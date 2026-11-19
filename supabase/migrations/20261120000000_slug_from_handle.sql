@@ -40,7 +40,7 @@ begin
       clean_slug := 'club';
     end if;
     if exists (select 1 from public.clubs c where lower(c.slug) = clean_slug or lower(c.handle) = clean_handle) then
-      clean_slug := clean_handle || '-' || substr(req.public_id::text, 1, 4);
+      clean_slug := clean_slug || '-' || substr(req.public_id::text, 1, 4);
       clean_handle := clean_handle || substr(req.public_id::text, 1, 4);
     end if;
 
@@ -127,7 +127,7 @@ begin
     clean_slug := 'club';
   end if;
   if exists (select 1 from public.clubs c where lower(c.slug) = clean_slug or lower(c.handle) = clean_handle) then
-    clean_slug := clean_handle || '-' || substr(new_auth_id::text, 1, 4);
+    clean_slug := clean_slug || '-' || substr(new_auth_id::text, 1, 4);
     clean_handle := clean_handle || substr(new_auth_id::text, 1, 4);
   end if;
 

@@ -183,6 +183,7 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
 
     await t.test('approving a club request with an underscore handle creates a valid slug', async () => {
       const student = users[UserRole.Student];
+      const clubLeader = users[UserRole.ClubLeader];
       const request = await call('/api/campus/club-requests', student.token, {
         name: 'Film Club', handle: 'film_club', category: 'Arts & culture',
         description: 'A place to watch and discuss films.', verificationNote: 'Weekly screenings and discussion.',
@@ -194,9 +195,22 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
         const [club] = await owner`select slug, handle from public.clubs where leader_id =
           (select id from public.profiles where public_id = ${student.publicId}) and handle like 'film_club%'`;
         assert.equal(club.slug, 'film-club');
+
+        const secondRequest = await call('/api/campus/club-requests', clubLeader.token, {
+          name: 'Second Film Club', handle: 'film_club', category: 'Arts & culture',
+          description: 'A second place to watch and discuss films.', verificationNote: 'A second weekly screening group.',
+        });
+        assert.equal(secondRequest.status, 201, JSON.stringify(secondRequest.body));
+        const secondApproved = await call(`/api/admin/club-requests/${secondRequest.body.data.id}`, admin, { decision: 'approved' }, {}, 'PATCH');
+        assert.equal(secondApproved.status, 200, JSON.stringify(secondApproved.body));
+        const [secondClub] = await owner`select slug from public.clubs where leader_id =
+          (select id from public.profiles where public_id = ${clubLeader.publicId}) and handle like 'film_club%'`;
+        assert.match(secondClub.slug, /^film-club-[a-z0-9]{4}$/);
       } finally {
-        await owner`delete from public.clubs where leader_id =
-          (select id from public.profiles where public_id = ${student.publicId}) and handle like 'film_club%'`;
+        await owner`delete from public.clubs where handle like 'film_club%'
+          and leader_id in (
+            select id from public.profiles where public_id in (${student.publicId}, ${clubLeader.publicId})
+          )`;
         await owner`update public.profiles set role = ${UserRole.Student} where public_id = ${student.publicId}`;
       }
     });
