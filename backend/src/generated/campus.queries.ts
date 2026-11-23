@@ -127,7 +127,7 @@ export interface IGetCampusPostsQuery {
   result: IGetCampusPostsResult;
 }
 
-const getCampusPostsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":486,"b":492}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":506,"b":513}]}],"statement":"select p.public_id as id, c.public_id as club, e.public_id as event,\n  p.body as text, p.image_urls, p.created_at,\n  private.club_post_like_count(p.id) as likes,\n  exists(select 1 from public.club_post_likes l where l.post_id = p.id) as liked,\n  exists(select 1 from public.club_post_saves s where s.post_id = p.id) as saved\nfrom public.club_posts p join public.clubs c on c.id = p.club_id\nleft join public.club_events e on e.id = p.event_id\norder by p.created_at desc, p.id desc limit :limit!::int offset :offset!::int"};
+const getCampusPostsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":512,"b":518}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":532,"b":539}]}],"statement":"select p.public_id as id, c.public_id as club, e.public_id as event,\n  p.body as text, p.image_urls, p.created_at,\n  private.club_post_like_count(p.id) as likes,\n  exists(select 1 from public.club_post_likes l where l.post_id = p.id) as liked,\n  exists(select 1 from public.club_post_saves s where s.post_id = p.id) as saved\nfrom public.club_posts p join public.clubs c on c.id = p.club_id\nleft join public.club_events e on e.id = p.event_id\nwhere p.hidden_at is null\norder by p.created_at desc, p.id desc limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -139,6 +139,7 @@ const getCampusPostsIR: any = {"usedParamSet":{"limit":true,"offset":true},"para
  *   exists(select 1 from public.club_post_saves s where s.post_id = p.id) as saved
  * from public.club_posts p join public.clubs c on c.id = p.club_id
  * left join public.club_events e on e.id = p.event_id
+ * where p.hidden_at is null
  * order by p.created_at desc, p.id desc limit :limit!::int offset :offset!::int
  * ```
  */
@@ -167,7 +168,7 @@ export interface IGetSavedCampusPostsQuery {
   result: IGetSavedCampusPostsResult;
 }
 
-const getSavedCampusPostsIR: any = {"usedParamSet":{},"params":[],"statement":"select p.public_id as id, c.public_id as club, e.public_id as event,\n  p.body as text, p.image_urls, p.created_at,\n  private.club_post_like_count(p.id) as likes,\n  exists(select 1 from public.club_post_likes l where l.post_id = p.id) as liked,\n  true as saved\nfrom public.club_post_saves s join public.club_posts p on p.id = s.post_id\njoin public.clubs c on c.id = p.club_id left join public.club_events e on e.id = p.event_id\norder by s.created_at desc, s.id desc limit 100"};
+const getSavedCampusPostsIR: any = {"usedParamSet":{},"params":[],"statement":"select p.public_id as id, c.public_id as club, e.public_id as event,\n  p.body as text, p.image_urls, p.created_at,\n  private.club_post_like_count(p.id) as likes,\n  exists(select 1 from public.club_post_likes l where l.post_id = p.id) as liked,\n  true as saved\nfrom public.club_post_saves s join public.club_posts p on p.id = s.post_id\njoin public.clubs c on c.id = p.club_id left join public.club_events e on e.id = p.event_id\nwhere p.hidden_at is null\norder by s.created_at desc, s.id desc limit 100"};
 
 /**
  * Query generated from SQL:
@@ -179,6 +180,7 @@ const getSavedCampusPostsIR: any = {"usedParamSet":{},"params":[],"statement":"s
  *   true as saved
  * from public.club_post_saves s join public.club_posts p on p.id = s.post_id
  * join public.clubs c on c.id = p.club_id left join public.club_events e on e.id = p.event_id
+ * where p.hidden_at is null
  * order by s.created_at desc, s.id desc limit 100
  * ```
  */
@@ -205,14 +207,14 @@ export interface IGetCampusListingsQuery {
   result: IGetCampusListingsResult;
 }
 
-const getCampusListingsIR: any = {"usedParamSet":{},"params":[],"statement":"select public_id as id, category, title, description, price_jpy, location, is_sample\nfrom public.listings\nwhere status = 'active' and category in ('sales','housing')\norder by created_at desc, id desc limit 6"};
+const getCampusListingsIR: any = {"usedParamSet":{},"params":[],"statement":"select public_id as id, category, title, description, price_jpy, location, is_sample\nfrom public.listings\nwhere status = 'active' and hidden_at is null and category in ('sales','housing')\norder by created_at desc, id desc limit 6"};
 
 /**
  * Query generated from SQL:
  * ```
  * select public_id as id, category, title, description, price_jpy, location, is_sample
  * from public.listings
- * where status = 'active' and category in ('sales','housing')
+ * where status = 'active' and hidden_at is null and category in ('sales','housing')
  * order by created_at desc, id desc limit 6
  * ```
  */
@@ -271,12 +273,12 @@ export interface ISetCampusLikeQuery {
   result: ISetCampusLikeResult;
 }
 
-const setCampusLikeIR: any = {"usedParamSet":{"id":true,"active":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":67,"b":70}]},{"name":"active","required":true,"transform":{"type":"scalar"},"locs":[{"a":168,"b":175},{"a":332,"b":339}]}],"statement":"with target as (select id from public.club_posts where public_id = :id!::uuid),\nadded as (\n  insert into public.club_post_likes (post_id)\n  select id from target where :active!::boolean on conflict (profile_id,post_id) do nothing\n), removed as (\n  delete from public.club_post_likes where post_id in (select id from target) and not :active!::boolean\n)\nselect exists(select 1 from target) as found"};
+const setCampusLikeIR: any = {"usedParamSet":{"id":true,"active":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":67,"b":70}]},{"name":"active","required":true,"transform":{"type":"scalar"},"locs":[{"a":190,"b":197},{"a":354,"b":361}]}],"statement":"with target as (select id from public.club_posts where public_id = :id!::uuid and hidden_at is null),\nadded as (\n  insert into public.club_post_likes (post_id)\n  select id from target where :active!::boolean on conflict (profile_id,post_id) do nothing\n), removed as (\n  delete from public.club_post_likes where post_id in (select id from target) and not :active!::boolean\n)\nselect exists(select 1 from target) as found"};
 
 /**
  * Query generated from SQL:
  * ```
- * with target as (select id from public.club_posts where public_id = :id!::uuid),
+ * with target as (select id from public.club_posts where public_id = :id!::uuid and hidden_at is null),
  * added as (
  *   insert into public.club_post_likes (post_id)
  *   select id from target where :active!::boolean on conflict (profile_id,post_id) do nothing
@@ -306,12 +308,12 @@ export interface ISetCampusSaveQuery {
   result: ISetCampusSaveResult;
 }
 
-const setCampusSaveIR: any = {"usedParamSet":{"id":true,"active":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":67,"b":70}]},{"name":"active","required":true,"transform":{"type":"scalar"},"locs":[{"a":168,"b":175},{"a":332,"b":339}]}],"statement":"with target as (select id from public.club_posts where public_id = :id!::uuid),\nadded as (\n  insert into public.club_post_saves (post_id)\n  select id from target where :active!::boolean on conflict (profile_id,post_id) do nothing\n), removed as (\n  delete from public.club_post_saves where post_id in (select id from target) and not :active!::boolean\n)\nselect exists(select 1 from target) as found"};
+const setCampusSaveIR: any = {"usedParamSet":{"id":true,"active":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":67,"b":70}]},{"name":"active","required":true,"transform":{"type":"scalar"},"locs":[{"a":190,"b":197},{"a":354,"b":361}]}],"statement":"with target as (select id from public.club_posts where public_id = :id!::uuid and hidden_at is null),\nadded as (\n  insert into public.club_post_saves (post_id)\n  select id from target where :active!::boolean on conflict (profile_id,post_id) do nothing\n), removed as (\n  delete from public.club_post_saves where post_id in (select id from target) and not :active!::boolean\n)\nselect exists(select 1 from target) as found"};
 
 /**
  * Query generated from SQL:
  * ```
- * with target as (select id from public.club_posts where public_id = :id!::uuid),
+ * with target as (select id from public.club_posts where public_id = :id!::uuid and hidden_at is null),
  * added as (
  *   insert into public.club_post_saves (post_id)
  *   select id from target where :active!::boolean on conflict (profile_id,post_id) do nothing
@@ -573,6 +575,7 @@ export interface IGetClubMembersParams {
 export interface IGetClubMembersResult {
   created_at: Date;
   id: string;
+  is_founder: boolean | null;
   is_me: boolean | null;
   name: string | null;
   role: string;
@@ -585,13 +588,14 @@ export interface IGetClubMembersQuery {
   result: IGetClubMembersResult;
 }
 
-const getClubMembersIR: any = {"usedParamSet":{"clubId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":254,"b":261}]}],"statement":"select m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at,\n  (m.profile_id = (select private.current_profile_id())) as is_me\nfrom public.club_members m\njoin public.clubs c on c.id = m.club_id\nwhere c.public_id = :clubId!::uuid\n  and private.can_manage_club(c.id)\norder by case when m.status = 'pending' then 0 else 1 end, m.created_at asc"};
+const getClubMembersIR: any = {"usedParamSet":{"clubId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":300,"b":307}]}],"statement":"select m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at,\n  (m.profile_id = (select private.current_profile_id())) as is_me,\n  (m.profile_id = c.leader_id) as is_founder\nfrom public.club_members m\njoin public.clubs c on c.id = m.club_id\nwhere c.public_id = :clubId!::uuid\n  and private.can_manage_club(c.id)\norder by case when m.status = 'pending' then 0 else 1 end, m.created_at asc"};
 
 /**
  * Query generated from SQL:
  * ```
  * select m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at,
- *   (m.profile_id = (select private.current_profile_id())) as is_me
+ *   (m.profile_id = (select private.current_profile_id())) as is_me,
+ *   (m.profile_id = c.leader_id) as is_founder
  * from public.club_members m
  * join public.clubs c on c.id = m.club_id
  * where c.public_id = :clubId!::uuid

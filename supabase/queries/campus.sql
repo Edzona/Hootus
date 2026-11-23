@@ -27,6 +27,7 @@ select p.public_id as id, c.public_id as club, e.public_id as event,
   exists(select 1 from public.club_post_saves s where s.post_id = p.id) as saved
 from public.club_posts p join public.clubs c on c.id = p.club_id
 left join public.club_events e on e.id = p.event_id
+where p.hidden_at is null
 order by p.created_at desc, p.id desc limit :limit!::int offset :offset!::int;
 
 /* @name GetSavedCampusPosts */
@@ -37,12 +38,13 @@ select p.public_id as id, c.public_id as club, e.public_id as event,
   true as saved
 from public.club_post_saves s join public.club_posts p on p.id = s.post_id
 join public.clubs c on c.id = p.club_id left join public.club_events e on e.id = p.event_id
+where p.hidden_at is null
 order by s.created_at desc, s.id desc limit 100;
 
 /* @name GetCampusListings */
 select public_id as id, category, title, description, price_jpy, location, is_sample
 from public.listings
-where status = 'active' and category in ('sales','housing')
+where status = 'active' and hidden_at is null and category in ('sales','housing')
 order by created_at desc, id desc limit 6;
 
 /* @name SetCampusFollow */
@@ -56,7 +58,7 @@ added as (
 select exists(select 1 from target) as found;
 
 /* @name SetCampusLike */
-with target as (select id from public.club_posts where public_id = :id!::uuid),
+with target as (select id from public.club_posts where public_id = :id!::uuid and hidden_at is null),
 added as (
   insert into public.club_post_likes (post_id)
   select id from target where :active!::boolean on conflict (profile_id,post_id) do nothing
@@ -66,7 +68,7 @@ added as (
 select exists(select 1 from target) as found;
 
 /* @name SetCampusSave */
-with target as (select id from public.club_posts where public_id = :id!::uuid),
+with target as (select id from public.club_posts where public_id = :id!::uuid and hidden_at is null),
 added as (
   insert into public.club_post_saves (post_id)
   select id from target where :active!::boolean on conflict (profile_id,post_id) do nothing
@@ -135,7 +137,8 @@ returning m.public_id as id;
 
 /* @name GetClubMembers */
 select m.public_id as id, private.author_name(m.profile_id) as name, m.role, m.status, m.created_at,
-  (m.profile_id = (select private.current_profile_id())) as is_me
+  (m.profile_id = (select private.current_profile_id())) as is_me,
+  (m.profile_id = c.leader_id) as is_founder
 from public.club_members m
 join public.clubs c on c.id = m.club_id
 where c.public_id = :clubId!::uuid

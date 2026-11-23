@@ -14,7 +14,7 @@ price_jpy::double precision as price_jpy, image_urls, location, status,
 created_at, updated_at, private.author_name(author_id) as author_name,
 (author_id = (select private.current_profile_id())) as is_mine
 from public.listings
-where status = 'active'
+where status = 'active' and hidden_at is null
   and (:categories::text[] is null or category = any(:categories::text[]))
 order by created_at desc, listings.id limit :limit!::int offset :offset!::int;
 
@@ -32,7 +32,7 @@ returning public_id as id, status;
 select public_id as id, category, title,
 price_jpy::double precision as price_jpy, image_urls, ended_at
 from public.listings
-where author_id = (select private.current_profile_id()) and status = 'sold'
+where author_id = (select private.current_profile_id()) and status = 'sold' and hidden_at is null
 order by ended_at desc nulls last, id desc
 limit :limit!::int offset :offset!::int;
 

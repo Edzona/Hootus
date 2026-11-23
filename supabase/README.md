@@ -60,13 +60,19 @@ confirmation enabled in Supabase Auth.
 | Table | Read | Write |
 | --- | --- | --- |
 | `profiles` | Own profile; admins can read all | Own avatar, bio and `email_digest` preference; admins can change roles |
-| `listings` | All members | Members create their own; owner/admin edit or delete |
-| `feed_posts` | All members | Club leaders/managers and partners publish permitted content; admins manage events and perks |
-| `clubs`, `club_events`, `club_posts` | Member-visible clubs and their content; partner pages are scoped | Club leaders/managers edit pages and publish; admins manage |
+| `listings` | All members; hidden listings are visible only to admins/moderators through moderation queries | Members create their own; owner/admin edit or delete; moderators hide, restore, or delete |
+| `feed_posts` | All members; hidden posts are visible only to admins/moderators through moderation queries | Club leaders/managers and partners publish permitted content; admin/moderators manage visibility and deletion |
+| `clubs`, `club_events`, `club_posts` | Member-visible clubs and their content; hidden posts are visible only to admins/moderators through moderation queries; partner pages are scoped | Club leaders/managers edit pages and publish; admins manage clubs; admins/moderators manage post visibility and deletion |
 | `club_members`, `club_requests` | Own membership/requests; club leaders/managers and admins see relevant rows | Members request membership or club creation; leaders/managers handle membership and admins review club requests |
 | `notifications`, `push_subscriptions` | Own notifications and devices | Members manage read state and devices; the system creates notifications |
+| `content_reports` | Admins/moderators; reporters can read their own reports at the database level (no API exposes them) | Confirmed members submit reports; admins and moderators resolve or dismiss them |
 
 The table above describes backend operations under RLS, not direct browser access.
+The `moderator` profile role otherwise retains student permissions. Hidden-content
+columns are not writable by `hootus_api`; the moderation functions perform
+authorized hide/restore operations. Moderators with approved club-manager
+membership may publish perks. Normal listings, feed, campus, notification,
+contact, and digest reads omit hidden content.
 
 ### Profile photos (Storage)
 
@@ -127,7 +133,9 @@ the initial migration. It adds clubs, club events/posts, and private follow,
 like, save, and RSVP relationships. It also labels seeded listings with
 `is_sample`. Primary keys remain internal bigints with public UUIDs at the API.
 All seven new tables enable RLS, revoke browser access, and index foreign keys.
-Only a club's assigned leader or an admin can publish on its behalf.
+Only a club's assigned leader, approved manager, or an admin can publish on its
+behalf. Moderators may publish perks only when they have an approved manager
+membership.
 
 The two `private.club_*_count` functions deliberately use SECURITY DEFINER to
 return aggregate counts without exposing other students' relationship rows.

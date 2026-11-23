@@ -33,7 +33,7 @@ export interface IGetNotificationsQuery {
   result: IGetNotificationsResult;
 }
 
-const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":744,"b":750}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":764,"b":771}]}],"statement":"-- RLS limits rows to your own notifications. Newest activity first.\nselect n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,\n  private.author_name(n.actor_id) as actor_name,\n  l.public_id as listing, l.title as listing_title, l.category as listing_category,\n  c.public_id as club, c.name as club_name,\n  cp.public_id as club_post, left(cp.body, 120) as club_post_body,\n  ce.public_id as club_event, ce.title as club_event_title\nfrom public.notifications n\nleft join public.listings l on l.id = n.listing_id\nleft join public.clubs c on c.id = n.club_id\nleft join public.club_posts cp on cp.id = n.club_post_id\nleft join public.club_events ce on ce.id = n.club_event_id\norder by n.updated_at desc, n.id desc\nlimit :limit!::int offset :offset!::int"};
+const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":793,"b":799}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":813,"b":820}]}],"statement":"-- RLS limits rows to your own notifications. Newest activity first.\nselect n.public_id as id, n.kind, n.event_count, n.created_at, n.updated_at, n.read_at,\n  private.author_name(n.actor_id) as actor_name,\n  l.public_id as listing, l.title as listing_title, l.category as listing_category,\n  c.public_id as club, c.name as club_name,\n  cp.public_id as club_post, left(cp.body, 120) as club_post_body,\n  ce.public_id as club_event, ce.title as club_event_title\nfrom public.notifications n\nleft join public.listings l on l.id = n.listing_id and l.hidden_at is null\nleft join public.clubs c on c.id = n.club_id\nleft join public.club_posts cp on cp.id = n.club_post_id and cp.hidden_at is null\nleft join public.club_events ce on ce.id = n.club_event_id\norder by n.updated_at desc, n.id desc\nlimit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -46,9 +46,9 @@ const getNotificationsIR: any = {"usedParamSet":{"limit":true,"offset":true},"pa
  *   cp.public_id as club_post, left(cp.body, 120) as club_post_body,
  *   ce.public_id as club_event, ce.title as club_event_title
  * from public.notifications n
- * left join public.listings l on l.id = n.listing_id
+ * left join public.listings l on l.id = n.listing_id and l.hidden_at is null
  * left join public.clubs c on c.id = n.club_id
- * left join public.club_posts cp on cp.id = n.club_post_id
+ * left join public.club_posts cp on cp.id = n.club_post_id and cp.hidden_at is null
  * left join public.club_events ce on ce.id = n.club_event_id
  * order by n.updated_at desc, n.id desc
  * limit :limit!::int offset :offset!::int

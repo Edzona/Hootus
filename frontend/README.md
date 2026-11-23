@@ -5,9 +5,10 @@ for production assets, `npm run lint` for ESLint, and `npm test` for auth redire
 and isolated-build regression tests. Run the API in `backend/`
 and configure the Vite API proxy as described in its README.
 
-Shared browser imports from `backend/src/types/` must be dependency-free. Import
-campus actions from `campusAction.ts`, not the Zod-backed `domain.ts` module.
-The isolated-build test checks this without backend dependencies installed.
+Shared browser imports from `backend/src/types/` must be dependency-free. Shared
+enums live in `domain.ts`, `clubOptions.ts`, and `campusAction.ts`; backend-only
+Zod schemas live in `domainSchemas.ts`. The isolated-build test checks this
+without backend dependencies installed.
 
 ## Campus
 
@@ -27,8 +28,13 @@ hosted Supabase email-template settings.
 - `/#/club-studio`: club settings, membership, and publishing for club leaders/managers.
 - `/#/marketplace` and `/#/real-estate`: sales/gigs and housing listings.
 - `/#/admin`: admin-only desk for listing members, changing other members'
-  roles, and moderating or deleting listings and feed posts. Linked from the
-  profile for admins; others see an admins-only notice, and the API enforces the role.
+  roles, managing clubs and founders, and moderating or deleting listings and
+  feed posts. Linked from the profile for admins; others see an admins-only
+  notice, and the API enforces the role.
+- `/#/moderation`: admin/moderator desk for reports and listings, feed posts,
+  and club posts. Admins and moderators can resolve or dismiss reports, hide or
+  restore content, and delete content; other roles see an access notice.
+  Members can report listings, offers, and club posts from their cards or details.
 
 The landing page's **Clubs & Orgs** link opens the campus. All campus data goes
 through the authenticated Express `/api/campus` API. The browser uses Supabase

@@ -5,7 +5,9 @@ import ClubStudio from './ClubStudio'
 import Profile from '../Profile'
 import { apiRequest } from '../../lib/api'
 import { formatNotification } from '../../lib/useNotifications'
+import ReportButton from '../ReportButton'
 import useCampusData from './useCampusData'
+import { ModerationTarget } from '../../../../backend/src/types/domain'
 import './campus.css'
 
 function Avatar({ club = { color: 'plum', mark: '✳' }, large = false }) {
@@ -78,7 +80,7 @@ function PhotoGrid({ urls, label }) {
 }
 
 function Post({ post }) {
-  const { liked, toggleLiked, saved, save, clubById, eventById, busy } = useContext(CampusContext)
+  const { liked, toggleLiked, saved, save, clubById, eventById, busy, setNotice } = useContext(CampusContext)
   const club = clubById(post.club)
   if (!club) return null
   const event = post.event && eventById(post.event)
@@ -87,7 +89,7 @@ function Post({ post }) {
     <p className="post-text">{post.text}</p>
     <PhotoGrid urls={post.imageUrls} label={club.name} />
     {event && <div className="post-event"><a className="poster-link" href={`#/events/${event.id}`} aria-label={`View ${event.title}`}><Poster event={event} /></a><EventSummary event={event} /></div>}
-    <div className="post-actions"><button type="button" aria-pressed={liked.includes(post.id)} className={liked.includes(post.id) ? 'is-liked' : ''} aria-label={`${liked.includes(post.id) ? 'Unlike' : 'Like'} post by ${club.name}`} disabled={busy} onClick={() => toggleLiked(post.id)}><Icon name="heart" size={18} />{post.likes}</button><button type="button" aria-pressed={saved.includes(post.id)} className={saved.includes(post.id) ? 'is-saved' : ''} disabled={busy} onClick={() => save(post.id)}><Icon name="save" size={17} />{saved.includes(post.id) ? 'Saved' : 'Save'}</button><a href={`#/clubs/${club.id}`}>Visit club<Icon name="arrow" size={15} /></a></div>
+    <div className="post-actions"><button type="button" aria-pressed={liked.includes(post.id)} className={liked.includes(post.id) ? 'is-liked' : ''} aria-label={`${liked.includes(post.id) ? 'Unlike' : 'Like'} post by ${club.name}`} disabled={busy} onClick={() => toggleLiked(post.id)}><Icon name="heart" size={18} />{post.likes}</button><button type="button" aria-pressed={saved.includes(post.id)} className={saved.includes(post.id) ? 'is-saved' : ''} disabled={busy} onClick={() => save(post.id)}><Icon name="save" size={17} />{saved.includes(post.id) ? 'Saved' : 'Save'}</button><a href={`#/clubs/${club.id}`}>Visit club<Icon name="arrow" size={15} /></a><ReportButton kind={ModerationTarget.ClubPost} id={post.id} onNotice={setNotice} className="report-action" /></div>
   </article>
 }
 
@@ -380,6 +382,7 @@ export default function Campus({ hash, notif }) {
                 <h3 className="mt-2 font-display text-xl font-bold">{offer.title}</h3>
                 {offer.body && <p className="post-text">{offer.body}</p>}
                 <PhotoGrid urls={offer.image_urls} label={offer.title} />
+                <div className="post-actions"><ReportButton kind={ModerationTarget.FeedPost} id={offer.id} onNotice={setNotice} className="report-action" /></div>
               </article>
             )) : <Empty heading="No promotional offers right now">{isPartner ? 'Publish a promotional offer in Club Studio.' : 'Local TUJ perks and student discounts will appear here.'}</Empty>}
           </>
@@ -390,7 +393,7 @@ export default function Campus({ hash, notif }) {
     </>
   }
 
-  return <CampusContext.Provider value={{ following, follow, liked, toggleLiked, saved, save, visibleClubs, category, setCategory, clubById, eventById, clubs, events, publish: campus.publish, busy }}><div className="campus-app">
+  return <CampusContext.Provider value={{ following, follow, liked, toggleLiked, saved, save, visibleClubs, category, setCategory, clubById, eventById, clubs, events, publish: campus.publish, busy, setNotice }}><div className="campus-app">
     <a className="campus-skip" href="#campus-main" onClick={(event) => { event.preventDefault(); mainRef.current?.focus() }}>Skip to content</a>
     <div className={`campus-shell${isPartner ? ' is-partner' : ''}`}>
       <aside className="campus-sidebar"><a href='#/profile' className='campus-user'><span className='user-avatar' style={userAvatarUrl ? { backgroundImage: 'url(' + userAvatarUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {}} aria-hidden='true'>{userAvatarUrl ? '' : userInitials}</span><span><strong>{userName}</strong><small>Make yourself at home</small></span><Icon name='arrow' size={16} /></a><nav className="campus-nav" aria-label="Campus navigation">{visibleNav.map((item) => { const active = path === item.path || item.path === '/dashboard' && (isClubDetail || isEventDetail); return <a key={item.path} href={`#${item.path}`} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon name={item.icon} /><span>{item.label}</span>{item.path === '/activity' && unreadCount > 0 && <span className="nav-count">{unreadCount}</span>}</a> })}</nav><div className="sidebar-note"><span aria-hidden="true">↗</span><p>A campus is a place.<br />A community is its people.</p><a href="#/dashboard" onClick={() => setTab('discover')}>Find yours here.</a></div><a href="#top" className="back-to-site">About HUS <Icon name="external" size={13} /></a></aside>

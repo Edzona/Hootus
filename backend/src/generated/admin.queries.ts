@@ -1,6 +1,8 @@
 /** Types generated for queries found in "../supabase/queries/admin.sql" */
 import { PreparedQuery } from '@pgtyped/runtime';
 
+export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+
 export type stringArray = (string)[];
 
 /** 'GetUsers' parameters type */
@@ -24,12 +26,12 @@ export interface IGetUsersQuery {
   result: IGetUsersResult;
 }
 
-const getUsersIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":206,"b":212}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":226,"b":233}]}],"statement":"-- Admin directory: public fields only, never email, student ID or Auth IDs.\nselect public_id as id, full_name, role, avatar_url, created_at\nfrom public.profiles\norder by created_at desc, profiles.id limit :limit!::int offset :offset!::int"};
+const getUsersIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":194,"b":200}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":214,"b":221}]}],"statement":"-- Admin directory: public fields only, never email or Auth IDs.\nselect public_id as id, full_name, role, avatar_url, created_at\nfrom public.profiles\norder by created_at desc, profiles.id limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
  * ```
- * -- Admin directory: public fields only, never email, student ID or Auth IDs.
+ * -- Admin directory: public fields only, never email or Auth IDs.
  * select public_id as id, full_name, role, avatar_url, created_at
  * from public.profiles
  * order by created_at desc, profiles.id limit :limit!::int offset :offset!::int
@@ -385,5 +387,198 @@ const createPartnerAccountIR: any = {"usedParamSet":{"email":true,"contactName":
  * ```
  */
 export const createPartnerAccount = new PreparedQuery<ICreatePartnerAccountParams,ICreatePartnerAccountResult>(createPartnerAccountIR);
+
+
+/** 'GetAdminClubs' parameters type */
+export interface IGetAdminClubsParams {
+  limit: number;
+  offset: number;
+}
+
+/** 'GetAdminClubs' return type */
+export interface IGetAdminClubsResult {
+  category: string;
+  color: string;
+  created_at: Date;
+  description: string;
+  founder: Json | null;
+  handle: string;
+  id: string;
+  location: string;
+  mark: string;
+  meeting: string;
+  members: number | null;
+  name: string;
+  org_type: string;
+  pending: number | null;
+  slug: string;
+}
+
+/** 'GetAdminClubs' query type */
+export interface IGetAdminClubsQuery {
+  params: IGetAdminClubsParams;
+  result: IGetAdminClubsResult;
+}
+
+const getAdminClubsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":432,"b":438}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":452,"b":459}]}],"statement":"select c.public_id as id, c.slug, c.name, c.handle, c.mark, c.color, c.category, c.org_type,\n  c.description, c.meeting, c.location,\n  jsonb_build_object('name', private.author_name(c.leader_id)) as founder,\n  private.club_member_count(c.id) as members,\n  (select count(*)::int from public.club_members m\n   where m.club_id = c.id and m.status = 'pending') as pending,\n  c.created_at\nfrom public.clubs c\norder by c.name, c.id\nlimit :limit!::int offset :offset!::int"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select c.public_id as id, c.slug, c.name, c.handle, c.mark, c.color, c.category, c.org_type,
+ *   c.description, c.meeting, c.location,
+ *   jsonb_build_object('name', private.author_name(c.leader_id)) as founder,
+ *   private.club_member_count(c.id) as members,
+ *   (select count(*)::int from public.club_members m
+ *    where m.club_id = c.id and m.status = 'pending') as pending,
+ *   c.created_at
+ * from public.clubs c
+ * order by c.name, c.id
+ * limit :limit!::int offset :offset!::int
+ * ```
+ */
+export const getAdminClubs = new PreparedQuery<IGetAdminClubsParams,IGetAdminClubsResult>(getAdminClubsIR);
+
+
+/** 'GetAdminClub' parameters type */
+export interface IGetAdminClubParams {
+  id: string;
+}
+
+/** 'GetAdminClub' return type */
+export interface IGetAdminClubResult {
+  category: string;
+  color: string;
+  created_at: Date;
+  description: string;
+  founder: Json | null;
+  handle: string;
+  id: string;
+  location: string;
+  mark: string;
+  meeting: string;
+  members: number | null;
+  name: string;
+  org_type: string;
+  pending: number | null;
+  slug: string;
+}
+
+/** 'GetAdminClub' query type */
+export interface IGetAdminClubQuery {
+  params: IGetAdminClubParams;
+  result: IGetAdminClubResult;
+}
+
+const getAdminClubIR: any = {"usedParamSet":{"id":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":424,"b":427}]}],"statement":"select c.public_id as id, c.slug, c.name, c.handle, c.mark, c.color, c.category, c.org_type,\n  c.description, c.meeting, c.location,\n  jsonb_build_object('name', private.author_name(c.leader_id)) as founder,\n  private.club_member_count(c.id) as members,\n  (select count(*)::int from public.club_members m\n   where m.club_id = c.id and m.status = 'pending') as pending,\n  c.created_at\nfrom public.clubs c\nwhere c.public_id = :id!::uuid"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select c.public_id as id, c.slug, c.name, c.handle, c.mark, c.color, c.category, c.org_type,
+ *   c.description, c.meeting, c.location,
+ *   jsonb_build_object('name', private.author_name(c.leader_id)) as founder,
+ *   private.club_member_count(c.id) as members,
+ *   (select count(*)::int from public.club_members m
+ *    where m.club_id = c.id and m.status = 'pending') as pending,
+ *   c.created_at
+ * from public.clubs c
+ * where c.public_id = :id!::uuid
+ * ```
+ */
+export const getAdminClub = new PreparedQuery<IGetAdminClubParams,IGetAdminClubResult>(getAdminClubIR);
+
+
+/** 'CreateAdminClub' parameters type */
+export interface ICreateAdminClubParams {
+  category: string;
+  description: string;
+  founderId: string;
+  handle: string;
+  location: string;
+  meeting: string;
+  name: string;
+}
+
+/** 'CreateAdminClub' return type */
+export interface ICreateAdminClubResult {
+  id: string | null;
+}
+
+/** 'CreateAdminClub' query type */
+export interface ICreateAdminClubQuery {
+  params: ICreateAdminClubParams;
+  result: ICreateAdminClubResult;
+}
+
+const createAdminClubIR: any = {"usedParamSet":{"name":true,"handle":true,"category":true,"description":true,"meeting":true,"location":true,"founderId":true},"params":[{"name":"name","required":true,"transform":{"type":"scalar"},"locs":[{"a":44,"b":49}]},{"name":"handle","required":true,"transform":{"type":"scalar"},"locs":[{"a":58,"b":65}]},{"name":"category","required":true,"transform":{"type":"scalar"},"locs":[{"a":74,"b":83}]},{"name":"description","required":true,"transform":{"type":"scalar"},"locs":[{"a":92,"b":104}]},{"name":"meeting","required":true,"transform":{"type":"scalar"},"locs":[{"a":115,"b":123}]},{"name":"location","required":true,"transform":{"type":"scalar"},"locs":[{"a":132,"b":141}]},{"name":"founderId","required":true,"transform":{"type":"scalar"},"locs":[{"a":150,"b":160}]}],"statement":"select id from private.admin_create_club(\n  :name!::text, :handle!::text, :category!::text, :description!::text,\n  :meeting!::text, :location!::text, :founderId!::uuid\n)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select id from private.admin_create_club(
+ *   :name!::text, :handle!::text, :category!::text, :description!::text,
+ *   :meeting!::text, :location!::text, :founderId!::uuid
+ * )
+ * ```
+ */
+export const createAdminClub = new PreparedQuery<ICreateAdminClubParams,ICreateAdminClubResult>(createAdminClubIR);
+
+
+/** 'TransferClubFounder' parameters type */
+export interface ITransferClubFounderParams {
+  clubId: string;
+  memberId: string;
+}
+
+/** 'TransferClubFounder' return type */
+export interface ITransferClubFounderResult {
+  id: string | null;
+}
+
+/** 'TransferClubFounder' query type */
+export interface ITransferClubFounderQuery {
+  params: ITransferClubFounderParams;
+  result: ITransferClubFounderResult;
+}
+
+const transferClubFounderIR: any = {"usedParamSet":{"clubId":true,"memberId":true},"params":[{"name":"clubId","required":true,"transform":{"type":"scalar"},"locs":[{"a":45,"b":52}]},{"name":"memberId","required":true,"transform":{"type":"scalar"},"locs":[{"a":61,"b":70}]}],"statement":"select id from private.transfer_club_founder(:clubId!::uuid, :memberId!::uuid)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select id from private.transfer_club_founder(:clubId!::uuid, :memberId!::uuid)
+ * ```
+ */
+export const transferClubFounder = new PreparedQuery<ITransferClubFounderParams,ITransferClubFounderResult>(transferClubFounderIR);
+
+
+/** 'DeleteAdminClub' parameters type */
+export interface IDeleteAdminClubParams {
+  id: string;
+}
+
+/** 'DeleteAdminClub' return type */
+export interface IDeleteAdminClubResult {
+  id: string;
+}
+
+/** 'DeleteAdminClub' query type */
+export interface IDeleteAdminClubQuery {
+  params: IDeleteAdminClubParams;
+  result: IDeleteAdminClubResult;
+}
+
+const deleteAdminClubIR: any = {"usedParamSet":{"id":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":43,"b":46}]}],"statement":"delete from public.clubs\nwhere public_id = :id!::uuid and org_type = 'club'\nreturning public_id as id"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * delete from public.clubs
+ * where public_id = :id!::uuid and org_type = 'club'
+ * returning public_id as id
+ * ```
+ */
+export const deleteAdminClub = new PreparedQuery<IDeleteAdminClubParams,IDeleteAdminClubResult>(deleteAdminClubIR);
 
 

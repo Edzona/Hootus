@@ -103,14 +103,14 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | POST | `/api/auth/signin` | Public; existing-account email-code request |
 | GET | `/api/profile/me` | Confirmed member; own profile |
 | PATCH | `/api/profile/me` | Confirmed member; own bio (max 500), photo URL from own `avatars` folder, or `email_digest` |
-| GET | `/api/listings` | Confirmed member; optional `category=sales,gigs` filters before `limit`/`offset` |
+| GET | `/api/listings` | Confirmed member; visible listings only; optional `category=sales,gigs` filters before `limit`/`offset` |
 | POST | `/api/listings` | Confirmed member; `image_urls` must be the caller's own `listing-photos` uploads |
 | GET | `/api/listings/mine/sold` | Confirmed member; own sold listings, newest first |
 | GET | `/api/listings/:id/contact` | Confirmed member; active listing seller's email and display name (partners: own listings only) |
 | PATCH | `/api/listings/:id` | Listing author; edit own active listing |
 | PATCH | `/api/listings/:id/status` | Listing author; active listing to `{ status: "sold" \| "closed" }` |
 | GET | `/api/feed` | Confirmed member |
-| POST | `/api/feed` | Club leader/admin for events; club leader/manager/partner/admin for perks |
+| POST | `/api/feed` | Club leader/admin for events; club leader/partner/admin or approved club managers for perks (including moderators) |
 | GET | `/api/admin/users` | Admin; members' public `id`, name, role, photo, join date (`?limit&offset`) |
 | PATCH | `/api/admin/users/:id` | Admin; `{ role }` for another member (not yourself), via `private.set_profile_role` |
 | GET | `/api/admin/listings` | Admin; all listings, any status (`?limit&offset`) |
@@ -121,6 +121,11 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | GET | `/api/admin/club-requests` | Admin; club creation requests (`?limit&offset`) |
 | PATCH | `/api/admin/club-requests/:id` | Admin; approve or reject a pending club request (`{ decision, note? }`) |
 | POST | `/api/admin/partners` | Admin; onboard a third-party partner account and partner page |
+| GET | `/api/admin/clubs` | Admin; all clubs and partner pages (`?limit&offset`) |
+| GET | `/api/admin/clubs/:id` | Admin; one club or partner page |
+| POST | `/api/admin/clubs` | Admin; create a club and assign an approved founder |
+| PATCH | `/api/admin/clubs/:id/founder` | Admin; transfer a club to an approved member |
+| DELETE | `/api/admin/clubs/:id` | Admin; delete a club and its activity (partner pages are protected) |
 | GET | `/api/campus` | Confirmed member; clubs, events, posts, own saved posts, listing suggestions |
 | PUT | `/api/campus/actions/:action/:id` | Confirmed member; idempotent follow/like/save/rsvp, `{ active: boolean }` |
 | PATCH | `/api/campus/clubs/:clubId` | Club manager/leader/admin; edit club or partner page details |
@@ -133,6 +138,12 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | DELETE | `/api/campus/clubs/:clubId/members/:memberId` | Club manager/leader/admin; remove a non-founder member |
 | GET | `/api/campus/club-requests` | Confirmed member; own submitted club creation requests |
 | POST | `/api/campus/club-requests` | Confirmed member; submit a club creation request for admin review |
+| POST | `/api/reports` | Confirmed member; report visible listing, feed post, or club post |
+| GET | `/api/moderation/reports` | Admin or moderator; reports by status (`?status&limit&offset`), without reporter identity |
+| PATCH | `/api/moderation/reports/:id` | Admin or moderator; resolve or dismiss an open report |
+| GET | `/api/moderation/content` | Admin or moderator; scan content by required `kind`, optional `hidden`, and pagination |
+| PATCH | `/api/moderation/content/:kind/:id` | Admin or moderator; hide or restore content |
+| DELETE | `/api/moderation/content/:kind/:id` | Admin or moderator; delete content |
 | GET | `/api/notifications` | Confirmed member; own notifications, newest first, with `meta.unread` |
 | GET | `/api/notifications/unread-count` | Confirmed member; `{ unread }` |
 | POST | `/api/notifications/:notificationId/read` | Confirmed member; own notification, 204 |
@@ -146,6 +157,10 @@ contain `author: { name }` only (`name` can be null if not supplied). Other auth
 UUIDs, Auth IDs, and email addresses are never included. The signed-in
 user's private profile endpoint includes their own profile UUID and account fields.
 Future seller actions should submit a listing UUID; the backend resolves the owner.
+Moderators otherwise retain student permissions; their moderation routes can
+review reports and hide, restore, or delete listings, feed posts, and club posts.
+Hidden content is omitted from normal member views, including for moderators and
+admins, and is available only in the moderation desk.
 
 The browser accesses Supabase Auth, but cannot read or write application tables.
 Normal data controllers use ``req.db(tx => tx`...`)`` with parameterized SQL.
@@ -235,13 +250,13 @@ npm test
 npm run test:integration
 ```
 
-Tests are split by feature into `auth`, `profile`, `listings`, `feed`, and
-`campus` files. HTTP behavior, domain validation, database access, and logging
-have separate files. Shared setup and fixture cleanup live in `tests/helpers/`.
-To run one feature against local Supabase, use, for example:
+Unit tests live in `tests/unit/`; tests that exercise the API against local
+Supabase live in `tests/integration/`. Shared setup and fixture cleanup live in
+`tests/helpers/`. To run one integration feature against local Supabase, use,
+for example:
 
 ```sh
-RUN_INTEGRATION=1 node --import tsx --test tests/campus.test.ts
+RUN_INTEGRATION=1 node --import tsx --test tests/integration/campus.test.ts
 ```
 
 The integration tests require local Supabase with all migrations applied,

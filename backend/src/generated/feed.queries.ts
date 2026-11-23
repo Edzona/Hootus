@@ -88,7 +88,7 @@ export interface IGetFeedQuery {
   result: IGetFeedResult;
 }
 
-const getFeedIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":261,"b":267}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":281,"b":288}]}],"statement":"select public_id as id, kind, title, body, image_urls, room_number, meeting_time,\nbusiness_name, coupon_code, expires_at, created_at, updated_at,\nprivate.author_name(author_id) as author_name from public.feed_posts\norder by created_at desc, feed_posts.id limit :limit!::int offset :offset!::int"};
+const getFeedIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":285,"b":291}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":305,"b":312}]}],"statement":"select public_id as id, kind, title, body, image_urls, room_number, meeting_time,\nbusiness_name, coupon_code, expires_at, created_at, updated_at,\nprivate.author_name(author_id) as author_name from public.feed_posts\nwhere hidden_at is null\norder by created_at desc, feed_posts.id limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -96,6 +96,7 @@ const getFeedIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"
  * select public_id as id, kind, title, body, image_urls, room_number, meeting_time,
  * business_name, coupon_code, expires_at, created_at, updated_at,
  * private.author_name(author_id) as author_name from public.feed_posts
+ * where hidden_at is null
  * order by created_at desc, feed_posts.id limit :limit!::int offset :offset!::int
  * ```
  */
