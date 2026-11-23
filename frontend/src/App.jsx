@@ -15,7 +15,7 @@ import Campus from './components/campus/Campus'
 import HubNav from './components/HubNav'
 import Marketplace from './components/Marketplace'
 import RealEstate from './components/RealEstate'
-import { supabase, signInCallbackPending } from './lib/supabase'
+import { supabase } from './lib/supabase'
 import { createDashboardRedirect } from './lib/authRedirect'
 import useNotifications from './lib/useNotifications'
 
@@ -32,7 +32,6 @@ export default function App() {
   useEffect(() => {
     if (!supabase) return
     const redirect = createDashboardRedirect({
-      callbackPending: signInCallbackPending,
       getHash: () => window.location.hash,
       navigate: (nextHash) => { window.location.hash = nextHash },
     })
