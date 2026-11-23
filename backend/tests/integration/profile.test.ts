@@ -1,24 +1,12 @@
-import { createTestApi } from './helpers/api.js';
+import { createTestApi } from '../helpers/api.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { profileUpdateSchema } from '../src/controllers/profile.controller.js';
 import { test } from 'node:test';
-import { UserRole } from '../src/types/domain.js';
-import { authOptions, createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
+import { UserRole } from '../../src/types/domain.js';
+import { authOptions, createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
 
 const { call } = createTestApi();
-
-test('profile updates accept only bio and photo changes', () => {
-  assert.equal(profileUpdateSchema.parse({ bio: '  Hello  ' }).bio, 'Hello');
-  assert.equal(profileUpdateSchema.parse({ bio: '   ' }).bio, null);
-  assert.equal(profileUpdateSchema.parse({ avatar_url: null }).avatar_url, null);
-  assert.equal(profileUpdateSchema.safeParse({ bio: 'x'.repeat(501) }).success, false);
-  assert.equal(profileUpdateSchema.safeParse({}).success, false);
-  for (const field of ['full_name', 'student_id', 'role', 'email']) {
-    assert.equal(profileUpdateSchema.safeParse({ bio: 'Hi', [field]: 'x' }).success, false);
-  }
-});
 
 test('profile privacy and uniqueness', integrationOptions, async t => {
   const fixture = await createIntegrationFixture();
@@ -74,7 +62,7 @@ test('profile privacy and uniqueness', integrationOptions, async t => {
           const rejected = await call('/api/profile/me', student.token, { avatar_url }, {}, 'PATCH');
           assert.equal(rejected.status, 400, avatar_url);
         }
-        for (const body of [{ bio: 'x'.repeat(501) }, { full_name: 'New name' }, { student_id: '123456789' }, { role: UserRole.Admin }]) {
+        for (const body of [{ bio: 'x'.repeat(501) }, { full_name: 'New name' }, { role: UserRole.Admin }]) {
           assert.equal((await call('/api/profile/me', student.token, body, {}, 'PATCH')).status, 400);
         }
         const [stored] = await owner`select full_name, role, bio, avatar_url from public.profiles where auth_user_id = ${student.id}`;

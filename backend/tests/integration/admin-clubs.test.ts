@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { UserRole } from '../src/types/domain.js';
-import { createTestApi } from './helpers/api.js';
-import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
+import { UserRole } from '../../src/types/domain.js';
+import { createTestApi } from '../helpers/api.js';
+import { createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
 
 const { call } = createTestApi();
 

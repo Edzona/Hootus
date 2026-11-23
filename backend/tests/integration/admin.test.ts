@@ -1,22 +1,11 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { FeedPostKind, ListingCategory, ListingStatus, PartnerCategory, UserRole } from '../src/types/domain.js';
-import { moderateFeedBody, moderateListingBody } from '../src/controllers/admin.controller.js';
-import { createTestApi } from './helpers/api.js';
-import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
+import { FeedPostKind, ListingCategory, ListingStatus, PartnerCategory, UserRole } from '../../src/types/domain.js';
+import { createTestApi } from '../helpers/api.js';
+import { createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
 
 const { call } = createTestApi();
-
-test('admin moderation bodies need a known change', () => {
-  assert.equal(moderateListingBody.safeParse({}).success, false);
-  assert.equal(moderateListingBody.safeParse({ status: 'deleted' }).success, false);
-  assert.equal(moderateListingBody.safeParse({ author_id: '1' }).success, false);
-  assert.equal(moderateListingBody.safeParse({ status: ListingStatus.Closed }).success, true);
-  assert.equal(moderateFeedBody.safeParse({}).success, false);
-  assert.equal(moderateFeedBody.safeParse({ kind: FeedPostKind.Perk }).success, false);
-  assert.equal(moderateFeedBody.safeParse({ title: 'Edited' }).success, true);
-});
 
 test('admin API access, moderation and privacy', integrationOptions, async t => {
   const fixture = await createIntegrationFixture();

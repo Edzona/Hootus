@@ -1,20 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { CampusAction, UserRole } from '../src/types/domain.js';
-import { campusActionParams } from '../src/controllers/campus.controller.js';
-import { createTestApi, withUser } from './helpers/api.js';
-import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
+import { CampusAction, UserRole } from '../../src/types/domain.js';
+import { createTestApi, withUser } from '../helpers/api.js';
+import { createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
 
 const { call } = createTestApi();
-
-test('campus action validation accepts each action and rejects unknown values', () => {
-  const id = randomUUID();
-  for (const action of Object.values(CampusAction)) {
-    assert.equal(campusActionParams.parse({ action, id }).action, action);
-  }
-  assert.equal(campusActionParams.safeParse({ action: 'unknown', id }).success, false);
-});
 
 test('campus API permissions and student interactions', integrationOptions, async t => {
   const fixture = await createIntegrationFixture();
@@ -79,7 +70,7 @@ test('campus API permissions and student interactions', integrationOptions, asyn
       assert(data.savedPosts.some((row: { id: string }) => row.id === postId));
       assert.equal(data.events.find((row: { id: string }) => row.id === eventId).attending, true);
       const serialized = JSON.stringify(data);
-      for (const field of ['leader_id', 'author_id', 'profile_id', 'auth_user_id', 'internal_id', 'public_id', 'email', 'student_id']) assert(!serialized.includes(`"${field}"`));
+      for (const field of ['leader_id', 'author_id', 'profile_id', 'auth_user_id', 'internal_id', 'public_id', 'email']) assert(!serialized.includes(`"${field}"`));
       assert(!serialized.includes(student.id));
       const other = (await call('/api/campus?limit=100', admin.token)).body.data;
       assert.equal(other.posts.find((row: { id: string }) => row.id === postId).saved, false);

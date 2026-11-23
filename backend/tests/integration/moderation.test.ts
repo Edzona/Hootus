@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { FeedPostKind, ListingCategory, UserRole } from '../src/types/domain.js';
-import { createTestApi, withUser } from './helpers/api.js';
-import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
+import { FeedPostKind, ListingCategory, UserRole } from '../../src/types/domain.js';
+import { createTestApi, withUser } from '../helpers/api.js';
+import { createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
 
 const { call } = createTestApi();
 

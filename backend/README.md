@@ -250,13 +250,13 @@ npm test
 npm run test:integration
 ```
 
-Tests are split by feature into `auth`, `profile`, `listings`, `feed`, and
-`campus` files. HTTP behavior, domain validation, database access, and logging
-have separate files. Shared setup and fixture cleanup live in `tests/helpers/`.
-To run one feature against local Supabase, use, for example:
+Unit tests live in `tests/unit/`; tests that exercise the API against local
+Supabase live in `tests/integration/`. Shared setup and fixture cleanup live in
+`tests/helpers/`. To run one integration feature against local Supabase, use,
+for example:
 
 ```sh
-RUN_INTEGRATION=1 node --import tsx --test tests/campus.test.ts
+RUN_INTEGRATION=1 node --import tsx --test tests/integration/campus.test.ts
 ```
 
 The integration tests require local Supabase with all migrations applied,

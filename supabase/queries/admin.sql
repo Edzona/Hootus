@@ -1,5 +1,5 @@
 /* @name GetUsers */
--- Admin directory: public fields only, never email, student ID or Auth IDs.
+-- Admin directory: public fields only, never email or Auth IDs.
 select public_id as id, full_name, role, avatar_url, created_at
 from public.profiles
 order by created_at desc, profiles.id limit :limit!::int offset :offset!::int;

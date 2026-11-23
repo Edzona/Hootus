@@ -10,7 +10,7 @@ import { assertAuthenticated } from '../helpers/auth.js';
 import { HttpError } from '../helpers/errors.js';
 import { ErrorCode } from '../types/errorCode.js';
 
-// Students edit their bio and photo only; name, email, student ID and role stay fixed.
+// Students edit their bio and photo only; name, email and role stay fixed.
 // Omitted fields are left unchanged; null clears a field.
 export const profileUpdateSchema = z.strictObject({
   bio: z.string().trim().max(500).transform(bio => bio || null).nullable().optional(),

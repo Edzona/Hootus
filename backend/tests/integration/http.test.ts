@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ErrorCode } from '../src/types/errorCode.js';
-import { createTestApi } from './helpers/api.js';
+import { ErrorCode } from '../../src/types/errorCode.js';
+import { createTestApi } from '../helpers/api.js';
 
 const api = createTestApi();
 const { call } = api;
@@ -37,6 +37,6 @@ test('health, protected routes, CORS, JSON errors and 404s', async () => {
   assert.equal(invalidJson.status, 400);
   assert.equal((await invalidJson.json()).error.code, ErrorCode.InvalidJson);
   assert.equal((await call('/api/auth/signup', undefined, {
-    email: 'outsider@example.com', name: 'Test', studentId: '123',
+    email: 'outsider@example.com', name: 'Test',
   })).status, 400);
 });

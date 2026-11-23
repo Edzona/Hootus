@@ -26,12 +26,12 @@ export interface IGetUsersQuery {
   result: IGetUsersResult;
 }
 
-const getUsersIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":206,"b":212}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":226,"b":233}]}],"statement":"-- Admin directory: public fields only, never email, student ID or Auth IDs.\nselect public_id as id, full_name, role, avatar_url, created_at\nfrom public.profiles\norder by created_at desc, profiles.id limit :limit!::int offset :offset!::int"};
+const getUsersIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":194,"b":200}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":214,"b":221}]}],"statement":"-- Admin directory: public fields only, never email or Auth IDs.\nselect public_id as id, full_name, role, avatar_url, created_at\nfrom public.profiles\norder by created_at desc, profiles.id limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
  * ```
- * -- Admin directory: public fields only, never email, student ID or Auth IDs.
+ * -- Admin directory: public fields only, never email or Auth IDs.
  * select public_id as id, full_name, role, avatar_url, created_at
  * from public.profiles
  * order by created_at desc, profiles.id limit :limit!::int offset :offset!::int
