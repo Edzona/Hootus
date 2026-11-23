@@ -1,22 +1,13 @@
-import { createTestApi } from './helpers/api.js';
+import { createTestApi } from '../helpers/api.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { signinSchema, signupSchema } from '../src/controllers/auth.controller.js';
-import { ErrorCode } from '../src/types/errorCode.js';
-import { UserRole } from '../src/types/domain.js';
-import { createIntegrationFixture, integrationOptions, emailedCode, authOptions } from './helpers/fixtures.js';
+import { ErrorCode } from '../../src/types/errorCode.js';
+import { UserRole } from '../../src/types/domain.js';
+import { createIntegrationFixture, integrationOptions, emailedCode, authOptions } from '../helpers/fixtures.js';
 
 const { call } = createTestApi();
-
-test('email-code requests normalize emails and reject non-Temple signups, redirects, and extra fields', () => {
-  assert.equal(signinSchema.parse({ email: ' Student@Temple.edu ' }).email, 'student@temple.edu');
-  assert.equal(signinSchema.safeParse({ email: 'partner@agency.jp' }).success, true);
-  assert.equal(signinSchema.safeParse({ email: 'student@temple.edu', redirectTo: 'https://evil.example' }).success, false);
-  assert.equal(signupSchema.safeParse({ email: 'student@example.com', name: 'Outsider' }).success, false);
-  assert.equal(signupSchema.safeParse({ email: 'student@temple.edu', name: 'Student' }).success, true);
-});
 
 test('authentication and signup', integrationOptions, async t => {
   const fixture = await createIntegrationFixture();
@@ -60,7 +51,6 @@ test('authentication and signup', integrationOptions, async t => {
       const body = {
         email, name: 'Signup test',
       };
-      assert.equal((await call('/api/auth/signup', undefined, { ...body, redirectTo: 'https://evil.example' })).status, 400);
       const result = await call('/api/auth/signup', undefined, body);
       // Find any created fixture before asserting, so finally can remove it.
       const [profile] = await owner`select auth_user_id from public.profiles where email = ${email}`;

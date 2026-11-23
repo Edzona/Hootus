@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { ListingCategory, UserRole } from '../src/types/domain.js';
-import { ErrorCode } from '../src/types/errorCode.js';
-import { sql, withUser } from './helpers/api.js';
-import { createIntegrationFixture, integrationOptions, authOptions } from './helpers/fixtures.js';
+import { ListingCategory, UserRole } from '../../src/types/domain.js';
+import { ErrorCode } from '../../src/types/errorCode.js';
+import { sql, withUser } from '../helpers/api.js';
+import { createIntegrationFixture, integrationOptions, authOptions } from '../helpers/fixtures.js';
 
 after(() => sql.end());
 

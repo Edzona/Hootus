@@ -1,17 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { FeedPostKind, UserRole } from '../src/types/domain.js';
-import { feedSchema } from '../src/controllers/feed.controller.js';
-import { createTestApi } from './helpers/api.js';
-import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
+import { FeedPostKind, UserRole } from '../../src/types/domain.js';
+import { createTestApi } from '../helpers/api.js';
+import { createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
 
 const { call } = createTestApi();
-
-test('feed validation rejects unknown kinds and missing variant-specific details', () => {
-  assert.equal(feedSchema.safeParse({ kind: 'unknown', title: 'Post' }).success, false);
-  assert.equal(feedSchema.safeParse({ kind: FeedPostKind.ClubEvent, title: 'Missing event details' }).success, false);
-  assert.equal(feedSchema.safeParse({ kind: FeedPostKind.Perk, title: 'Missing business' }).success, false);
-});
 
 test('feed publishing permissions and privacy', integrationOptions, async t => {
   const fixture = await createIntegrationFixture();

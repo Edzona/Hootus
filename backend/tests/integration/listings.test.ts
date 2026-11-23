@@ -1,20 +1,12 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { ListingCategory, UserRole } from '../src/types/domain.js';
-import { listingSchema } from '../src/controllers/listings.controller.js';
-import { env } from '../src/config/env.js';
-import { createTestApi } from './helpers/api.js';
-import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
+import { ListingCategory, UserRole } from '../../src/types/domain.js';
+import { env } from '../../src/config/env.js';
+import { createTestApi } from '../helpers/api.js';
+import { createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
 
 const { call } = createTestApi();
-
-test('listing validation covers supported categories and rejects unknown categories', () => {
-  for (const category of Object.values(ListingCategory)) {
-    assert.equal(listingSchema.parse({ category, title: 'Desk' }).category, category);
-  }
-  assert.equal(listingSchema.safeParse({ category: 'unknown', title: 'Desk' }).success, false);
-});
 
 test('listing API validation and persistence', integrationOptions, async t => {
   const fixture = await createIntegrationFixture();

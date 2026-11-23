@@ -1,13 +1,13 @@
-import { HttpError } from '../src/helpers/errors.js';
-import { ErrorCode } from '../src/types/errorCode.js';
+import { HttpError } from '../../src/helpers/errors.js';
+import { ErrorCode } from '../../src/types/errorCode.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { once } from 'node:events';
 import { format } from 'node:util';
 import debug from 'debug';
 import express from 'express';
-import { requestLogger } from '../src/middleware/requestLogger.js';
-import { errorHandler } from '../src/middleware/errorHandler.js';
+import { requestLogger } from '../../src/middleware/requestLogger.js';
+import { errorHandler } from '../../src/middleware/errorHandler.js';
 
 test('one safe log per request, severity, timing and response correlation', async t => {
   const entries: { channel: string; value: Record<string, unknown> }[] = [];
