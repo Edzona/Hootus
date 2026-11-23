@@ -71,13 +71,13 @@ only for Auth; do not grant browser roles application-table access.
   a unique `public_id` UUID. API record IDs contain public UUIDs only; never
   return internal IDs, raw database rows, or unnecessary relationship IDs.
   Listing/feed responses expose only `author: { name }`, not author UUIDs,
-  Auth IDs, emails, or student IDs. Resolve owners server-side from a listing
+  Auth IDs, or emails. Resolve owners server-side from a listing
   UUID when implementing actions such as messaging.
   Resolve incoming UUIDs inside `req.db` so RLS still applies.
   Cast bigint IDs to text when reading them into JS to avoid precision loss.
 - Supabase Auth keeps UUIDs: `profiles.auth_user_id` links to `auth.users.id`.
   `req.user.id` is the public profile UUID; `req.user.internalId` is server-only.
-- Keep email and student ID uniqueness enforced in Postgres as well as signup.
+- Keep email uniqueness enforced in Postgres as well as signup.
 - Put local sample data in `../supabase/seed.sql`, not ad-hoc user-creation scripts.
   Keep seed data repeatable and separate from schema migrations.
 - `DATABASE_URL` is server-only and must use the `hootus_server` login, never
@@ -159,9 +159,10 @@ only for Auth; do not grant browser roles application-table access.
 
 ## Test scope
 
-Keep API tests in separate files by feature (`auth.test.ts`, `profile.test.ts`,
-`listings.test.ts`, `feed.test.ts`, and `campus.test.ts`). Put shared server and
-local fixture setup in `tests/helpers/`; do not collect all API tests into one file.
+Keep unit tests in `tests/unit/` and integration tests in `tests/integration/`,
+separated by feature (`auth.test.ts`, `profile.test.ts`, `listings.test.ts`,
+`feed.test.ts`, and `campus.test.ts`). Put shared server and local fixture setup
+in `tests/helpers/`; do not collect all API tests into one file.
 
 Test behavior we own: API contracts, business validation, authorization/RLS,
 transaction isolation, error mapping, response privacy, logging, and tooling

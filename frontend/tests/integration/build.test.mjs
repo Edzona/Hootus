@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
-const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
 test('frontend builds with only frontend dependencies installed', { timeout: 30000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'hootus-frontend-test-'))

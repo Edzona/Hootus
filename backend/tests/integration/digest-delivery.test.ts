@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { UserRole } from '../src/types/domain.js';
-import { createIntegrationFixture, integrationOptions } from './helpers/fixtures.js';
+import { UserRole } from '../../src/types/domain.js';
+import { createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
 
 // Set before importing the env-backed digest helper. Port 9 on localhost is closed, so every send fails fast with ECONNREFUSED.
 Object.assign(process.env, {
   SMTP_HOST: '127.0.0.1', SMTP_PORT: '9', SMTP_FROM: 'digest@hootus.test', CRON_SECRET: 'test-cron-secret-123456',
 });
-const { sendDailyDigests } = await import('../src/helpers/digest.js');
+const { sendDailyDigests } = await import('../../src/helpers/digest.js');
 
 test('failed digests are attempted once per run and their window is restored', { ...integrationOptions, timeout: 60_000 }, async () => {
   const fixture = await createIntegrationFixture();
