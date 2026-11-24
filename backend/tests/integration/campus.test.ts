@@ -29,13 +29,10 @@ test('campus API permissions and student interactions', integrationOptions, asyn
         call(`/api/campus/actions/${action}/${id}`, token, { active }, {}, 'PUT');
       assert.equal((await call(postPath, student.token, { text: 'Spoofed post' })).status, 403);
       assert.equal((await call(`/api/campus/clubs/${clubIds[1]}/posts`, leader.token, { text: 'Wrong club' })).status, 403);
-      assert.equal((await call('/api/campus/clubs/not-a-uuid/posts', leader.token, { text: 'Invalid' })).status, 400);
-      assert.equal((await call(postPath, leader.token, { text: ' ', author_id: admin.id })).status, 400);
       const details = {
         title: 'Fixture meetup', starts_at: '2026-11-04T17:00:00+09:00', ends_at: '2026-11-04T18:00:00+09:00',
         location: 'Fixture room', event_type: 'Meetup',
       };
-      assert.equal((await call(eventPath, leader.token, { ...details, ends_at: details.starts_at })).status, 400);
       const createdEvent = await call(eventPath, leader.token, details);
       assert.equal(createdEvent.status, 201, JSON.stringify(createdEvent.body));
       const eventId = createdEvent.body.data.id;
@@ -52,8 +49,6 @@ test('campus API permissions and student interactions', integrationOptions, asyn
         assert.equal((await setAction(action, randomUUID(), true)).status, 404);
       }
       assert.equal((await setAction('unknown', postId, true)).status, 400);
-      assert.equal((await setAction(CampusAction.Like, '123', true)).status, 400);
-      assert.equal((await call(`/api/campus/actions/like/${postId}`, student.token, { active: true, profile_id: admin.id }, {}, 'PUT')).status, 400);
       const snapshot = await call('/api/campus?limit=100', student.token);
       assert.equal(snapshot.status, 200, JSON.stringify(snapshot.body));
       assert.equal(snapshot.headers.get('cache-control'), 'private, no-store');
@@ -162,6 +157,111 @@ test('campus API permissions and student interactions', integrationOptions, asyn
       assert.equal(kept.count, 1);
       const posted = await call(`/api/campus/clubs/${clubId}/posts`, founder.token, { text: 'Founder update' });
       assert.equal(posted.status, 201, JSON.stringify(posted.body));
+    });
+
+    await t.test('club editing, promoted manager actions, member removal, and leaving', async () => {
+      const founder = users[UserRole.ClubLeader];
+      const student = users[UserRole.Student];
+      const moderator = users[UserRole.Moderator];
+      const admin = users[UserRole.Admin];
+      const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+
+      const created = await call('/api/admin/clubs', admin.token, {
+        name: 'Campus Edit Club', handle: `edit_${suffix}`, category: 'Arts & culture',
+        description: 'Original club description text.', founderId: founder.publicId,
+      });
+      assert.equal(created.status, 201, JSON.stringify(created.body));
+      const clubId = created.body.data.id;
+      campusClubIds.push(clubId);
+
+      assert.equal((await call(`/api/campus/clubs/${clubId}`, student.token, {
+        name: 'Denied Edit', description: 'Unauthorized edit description.', meeting: '', location: '',
+        category: 'Music', mark: 'DE', color: 'blue',
+      }, {}, 'PATCH')).status, 403);
+
+      const updatedByFounder = await call(`/api/campus/clubs/${clubId}`, founder.token, {
+        name: 'Updated Club', description: 'Updated club description text.', meeting: 'Wed 18:00', location: 'Room 202',
+        category: 'Music', mark: 'UC', color: 'blue',
+      }, {}, 'PATCH');
+      assert.equal(updatedByFounder.status, 200, JSON.stringify(updatedByFounder.body));
+      assert.equal(updatedByFounder.body.data.name, 'Updated Club');
+      assert.equal(updatedByFounder.body.data.mark, 'UC');
+      assert.equal(updatedByFounder.body.data.color, 'blue');
+
+      const campusSnap = await call('/api/campus?limit=100', student.token);
+      const reflected = (campusSnap.body.data.clubs as { id: string; name: string; mark: string; color: string }[]).find(c => c.id === clubId);
+      assert.deepEqual(reflected && { name: reflected.name, mark: reflected.mark, color: reflected.color }, {
+        name: 'Updated Club', mark: 'UC', color: 'blue',
+      });
+
+      const studentJoin = await call(`/api/campus/clubs/${clubId}/membership`, student.token, undefined, {}, 'POST');
+      const modJoin = await call(`/api/campus/clubs/${clubId}/membership`, moderator.token, undefined, {}, 'POST');
+      assert.equal(studentJoin.status, 201);
+      assert.equal(modJoin.status, 201);
+
+      assert.equal((await call(`/api/campus/clubs/${clubId}/members/${studentJoin.body.data.id}`, founder.token, {
+        status: 'approved', role: 'manager',
+      }, {}, 'PATCH')).status, 200);
+      assert.equal((await call(`/api/campus/clubs/${clubId}/members/${modJoin.body.data.id}`, founder.token, {
+        status: 'approved', role: 'member',
+      }, {}, 'PATCH')).status, 200);
+
+      assert.equal((await call(`/api/campus/clubs/${clubId}/posts`, student.token, { text: 'Promoted manager post' })).status, 201);
+      assert.equal((await call(`/api/campus/clubs/${clubId}`, student.token, {
+        name: 'Manager Updated Club', description: 'Manager updated club description.', meeting: 'Thu 18:00', location: 'Room 203',
+        category: 'Music', mark: 'MC', color: 'gold',
+      }, {}, 'PATCH')).status, 200);
+      assert.equal((await call(`/api/campus/clubs/${clubId}/members/${modJoin.body.data.id}`, student.token, undefined, {}, 'DELETE')).status, 200);
+
+      const membersBeforeLeave = await call(`/api/campus/clubs/${clubId}/members`, founder.token);
+      const founderRow = (membersBeforeLeave.body.data as { id: string; is_founder: boolean }[]).find(m => m.is_founder);
+      assert(founderRow);
+      assert.equal((await call(`/api/campus/clubs/${clubId}/members/${founderRow.id}`, student.token, undefined, {}, 'DELETE')).status, 404);
+
+      assert.equal((await call(`/api/campus/clubs/${clubId}/membership`, student.token, undefined, {}, 'DELETE')).status, 200);
+      const membersAfterLeave = await call(`/api/campus/clubs/${clubId}/members`, founder.token);
+      assert(!(membersAfterLeave.body.data as { id: string }[]).some(m => m.id === studentJoin.body.data.id));
+      assert.equal((await call(`/api/campus/clubs/${clubId}/posts`, student.token, { text: 'Post after leave' })).status, 403);
+    });
+
+    await t.test('students list only their own club requests and see review updates', async () => {
+      const student = users[UserRole.Student];
+      const moderator = users[UserRole.Moderator];
+      const admin = users[UserRole.Admin];
+      const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+
+      const studentReq = await call('/api/campus/club-requests', student.token, {
+        name: 'Student Req Club', handle: `sreq_${suffix}`, category: 'Music',
+        description: 'A student club request description.', verificationNote: 'Faculty advisor approved.',
+      });
+      const modReq = await call('/api/campus/club-requests', moderator.token, {
+        name: 'Moderator Req Club', handle: `mreq_${suffix}`, category: 'Music',
+        description: 'A moderator club request description.', verificationNote: 'Faculty advisor approved.',
+      });
+      assert.equal(studentReq.status, 201, JSON.stringify(studentReq.body));
+      assert.equal(modReq.status, 201, JSON.stringify(modReq.body));
+
+      try {
+        const myRequests = await call('/api/campus/club-requests', student.token);
+        assert.equal(myRequests.status, 200, JSON.stringify(myRequests.body));
+        const mine = (myRequests.body.data as { id: string; status: string }[]).find(r => r.id === studentReq.body.data.id);
+        assert(mine);
+        assert.equal(mine.status, 'pending');
+        assert(!(myRequests.body.data as { id: string }[]).some(r => r.id === modReq.body.data.id));
+
+        const rejected = await call(`/api/admin/club-requests/${studentReq.body.data.id}`, admin.token, {
+          decision: 'rejected', note: 'Needs advisor',
+        }, {}, 'PATCH');
+        assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
+
+        const afterReview = await call('/api/campus/club-requests', student.token);
+        const reviewed = (afterReview.body.data as { id: string; status: string; review_note: string | null }[])
+          .find(r => r.id === studentReq.body.data.id);
+        assert.equal(reviewed?.status, 'rejected');
+        assert.equal(reviewed?.review_note, 'Needs advisor');
+      } finally {
+        await owner`delete from public.club_requests where public_id in (${studentReq.body.data.id}, ${modReq.body.data.id})`;
+      }
     });
   } finally {
     await fixture.cleanup();

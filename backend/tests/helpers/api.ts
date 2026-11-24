@@ -25,7 +25,9 @@ export function createTestApi() {
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    return { status: response.status, body: await response.json(), headers: response.headers };
+    const text = await response.text();
+    const isJson = response.headers.get('content-type')?.includes('application/json');
+    return { status: response.status, body: text && isJson ? JSON.parse(text) : text || undefined, headers: response.headers };
   }
 
   before(async () => {

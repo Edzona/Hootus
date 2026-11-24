@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { ErrorCode } from '../../src/types/errorCode.js';
 import { UserRole } from '../../src/types/domain.js';
 import { createIntegrationFixture, integrationOptions, emailedCode, authOptions } from '../helpers/fixtures.js';
 

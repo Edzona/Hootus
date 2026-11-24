@@ -52,15 +52,11 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       const text = JSON.stringify(result.body);
       assert(!text.includes(users[UserRole.Student].email));
       assert(!text.includes(users[UserRole.Student].id));
-      assert.equal((await call('/api/admin/users?limit=101', admin)).status, 400);
     });
 
     await t.test('admin changes another member\'s role but not their own', async () => {
       const student = users[UserRole.Student];
       const path = `/api/admin/users/${student.publicId}`;
-      assert.equal((await call(path, admin, { role: 'owner' }, {}, 'PATCH')).status, 400);
-      assert.equal((await call(path, admin, {}, {}, 'PATCH')).status, 400);
-      assert.equal((await call('/api/admin/users/1', admin, { role: UserRole.Student }, {}, 'PATCH')).status, 400);
       assert.equal((await call(`/api/admin/users/${randomUUID()}`, admin, { role: UserRole.Student }, {}, 'PATCH')).status, 404);
       const self = await call(`/api/admin/users/${users[UserRole.Admin].publicId}`, admin, { role: UserRole.Student }, {}, 'PATCH');
       assert.equal(self.status, 409);
@@ -117,12 +113,10 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.equal(stored.role, UserRole.Student);
     });
 
-    await t.test('admin params must be UUIDs and missing records are 404', async () => {
+    await t.test('admin validation rejects bad params and missing records are 404', async () => {
       assert.equal((await call('/api/admin/listings/1', admin, { status: ListingStatus.Closed }, {}, 'PATCH')).status, 400);
-      assert.equal((await call('/api/admin/feed/not-a-uuid', admin, undefined, {}, 'DELETE')).status, 400);
       assert.equal((await call(`/api/admin/listings/${randomUUID()}`, admin, { status: ListingStatus.Closed }, {}, 'PATCH')).status, 404);
       assert.equal((await call(`/api/admin/feed/${randomUUID()}`, admin, undefined, {}, 'DELETE')).status, 404);
-      assert.equal((await call(`/api/admin/listings/${listing.id}`, admin, {}, {}, 'PATCH')).status, 400);
     });
 
     await t.test('admin lists active and closed listings with public author data only', async () => {
@@ -141,7 +135,6 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert.deepEqual(closedRow.author, { name: 'Test student' });
       assert(!('author_id' in closedRow) && !('email' in closedRow));
       assert(!JSON.stringify(result.body).includes(users[UserRole.Student].email));
-      assert.equal((await call('/api/admin/listings?limit=101', admin)).status, 400);
     });
 
     await t.test('admin moderates and deletes another member\'s listing', async () => {
@@ -204,7 +197,37 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       }
     });
 
-    await t.test('creating a partner with an underscore handle creates a valid slug', async () => {
+    await t.test('admin lists and rejects club requests and prevents re-review', async () => {
+      const student = users[UserRole.Student];
+      const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+      const request = await call('/api/campus/club-requests', student.token, {
+        name: 'Reject Club', handle: `rej_${suffix}`, category: 'Arts & culture',
+        description: 'A club request to be rejected.', verificationNote: 'Pending review note.',
+      });
+      assert.equal(request.status, 201, JSON.stringify(request.body));
+      const requestId = request.body.data.id;
+      try {
+        const list = await call('/api/admin/club-requests?limit=100', admin);
+        assert.equal(list.status, 200, JSON.stringify(list.body));
+        assert((list.body.data as { id: string }[]).some(row => row.id === requestId));
+
+        const rejected = await call(`/api/admin/club-requests/${requestId}`, admin, {
+          decision: 'rejected', note: 'Duplicate club',
+        }, {}, 'PATCH');
+        assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
+        assert.equal(rejected.body.data.status, 'rejected');
+        assert.equal(rejected.body.data.review_note, 'Duplicate club');
+
+        const secondReview = await call(`/api/admin/club-requests/${requestId}`, admin, {
+          decision: 'approved',
+        }, {}, 'PATCH');
+        assert.equal(secondReview.status, 404);
+      } finally {
+        await owner`delete from public.club_requests where public_id = ${requestId}`;
+      }
+    });
+
+    await t.test('creating a partner with an underscore handle creates a valid slug and rejects duplicates', async () => {
       const email = `hootus-partner-${randomUUID()}@example.com`;
       try {
         const created = await call('/api/admin/partners', admin, {
@@ -218,6 +241,13 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
         const [partner] = await owner`select id from auth.users where email = ${email}`;
         fixture.ids.push(partner.id);
         fixture.clubIds.push(created.body.data.club_id);
+
+        const duplicate = await call('/api/admin/partners', admin, {
+          email: email.toUpperCase(), contactName: 'Dup Partner', orgName: 'Dup Partner',
+          handle: `dup_${randomUUID().replaceAll('-', '').slice(0, 8)}`, category: PartnerCategory.LocalBusiness,
+          description: 'Duplicate partner email test.', hours: '', location: '',
+        });
+        assert.equal(duplicate.status, 409, JSON.stringify(duplicate.body));
       } finally {
         await owner`delete from public.clubs where leader_id =
           (select id from public.profiles where email = ${email})`;

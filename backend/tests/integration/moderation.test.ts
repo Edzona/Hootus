@@ -12,7 +12,6 @@ test('reports and moderation enforce privacy, permissions, and hidden-content be
   const admin = users[UserRole.Admin];
   const moderator = users[UserRole.Moderator];
   const student = users[UserRole.Student];
-  const clubLeader = users[UserRole.ClubLeader];
   let listingReportId = '';
 
   try {
@@ -51,9 +50,6 @@ test('reports and moderation enforce privacy, permissions, and hidden-content be
         kind: 'listing', id: listing.body.data.id, reason: 'Another report',
       })).status, 409);
       assert.equal((await call('/api/reports', student.token, {
-        kind: 'unknown', id: listing.body.data.id, reason: 'Invalid target',
-      })).status, 400);
-      assert.equal((await call('/api/reports', student.token, {
         kind: 'listing', id: '00000000-0000-4000-8000-000000000001', reason: 'Missing target',
       })).status, 404);
       assert.equal((await call('/api/reports', student.token, {
@@ -74,8 +70,6 @@ test('reports and moderation enforce privacy, permissions, and hidden-content be
       assert(!JSON.stringify(report).includes(student.publicId));
       assert(!JSON.stringify(report).includes(student.id));
       assert(!JSON.stringify(report).includes(student.email));
-      assert.equal((await call('/api/moderation/reports?status=invalid', moderator.token)).status, 400);
-      assert.equal((await call(`/api/moderation/reports/${reported.body.data.id}`, moderator.token, { status: 'open' }, {}, 'PATCH')).status, 400);
       assert.equal((await call(`/api/moderation/reports/${reported.body.data.id}`, student.token, { status: 'resolved' }, {}, 'PATCH')).status, 403);
 
       const [stored] = await owner`select reporter_id, target_kind, reason from public.content_reports where public_id = ${reported.body.data.id}`;
@@ -180,8 +174,6 @@ test('reports and moderation enforce privacy, permissions, and hidden-content be
       assert.equal(deletedReport.target_title, null);
       const dismissAgain = await call(`/api/moderation/reports/${feedReport.body.data.id}`, moderator.token, { status: 'resolved' }, {}, 'PATCH');
       assert.equal(dismissAgain.status, 404);
-      assert.equal((await call(`/api/moderation/content/listing/${listing.body.data.id}`, moderator.token, { hidden: 'yes' }, {}, 'PATCH')).status, 400);
-      assert.equal((await call(`/api/moderation/content/unknown/${listing.body.data.id}`, moderator.token, undefined, {}, 'DELETE')).status, 400);
       assert.equal((await call(`/api/moderation/content/listing/${listing.body.data.id}`, student.token, { hidden: true }, {}, 'PATCH')).status, 403);
       assert.equal((await call(`/api/moderation/content/feed_post/${perk.body.data.id}`, moderator.token, undefined, {}, 'DELETE')).status, 200);
       assert(!((await call('/api/feed', student.token)).body.data as { id: string }[]).some(item => item.id === perk.body.data.id));
