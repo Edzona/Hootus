@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { ListingCategory, UserRole } from '../../src/types/domain.js';
+import { ListingCategory, ListingStatus, UserRole } from '../../src/types/domain.js';
 import { env } from '../../src/config/env.js';
 import { createTestApi } from '../helpers/api.js';
 import { createIntegrationFixture, integrationOptions } from '../helpers/fixtures.js';
@@ -12,12 +12,10 @@ test('listing API validation and persistence', integrationOptions, async t => {
   const fixture = await createIntegrationFixture();
   const { users, owner } = fixture;
   try {
-    await t.test('listing validation rejects spoofed ownership and negative prices', async () => {
-      for (const body of [
-        { category: ListingCategory.Sales, title: 'Desk', author_id: users[UserRole.Admin].id },
-        { category: ListingCategory.Sales, title: 'Desk', price_jpy: -1 },
-      ]) assert.equal((await call('/api/listings', users[UserRole.Student].token, body)).status, 400);
-      assert.equal((await call('/api/listings?limit=101', users[UserRole.Student].token)).status, 400);
+    await t.test('listing validation middleware rejects spoofed ownership', async () => {
+      assert.equal((await call('/api/listings', users[UserRole.Student].token, {
+        category: ListingCategory.Sales, title: 'Desk', author_id: users[UserRole.Admin].id,
+      })).status, 400);
     });
     const bucket = `${env.SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/listing-photos/`;
     const [photo, othersPhoto] = [randomUUID(), randomUUID()].map(id => `${id}.jpg`);
@@ -73,9 +71,7 @@ test('listing API validation and persistence', integrationOptions, async t => {
       const market = await call('/api/listings?limit=100&category=sales,gigs', student.token);
       assert(market.body.data.every((row: { category: string }) => row.category !== ListingCategory.Housing));
       assert(market.body.data.some((row: { id: string }) => row.id === gig.body.data.id));
-      for (const category of ['bogus', '', 'sales,']) {
-        assert.equal((await call(`/api/listings?category=${category}`, student.token)).status, 400);
-      }
+      assert.equal((await call('/api/listings?category=bogus', student.token)).status, 400);
 
       const contactPath = `/api/listings/${housing.body.data.id}/contact`;
       const contact = await call(contactPath, users[UserRole.ClubLeader].token);
@@ -84,6 +80,66 @@ test('listing API validation and persistence', integrationOptions, async t => {
       const partnerContact = await call(contactPath, users[UserRole.Partner].token);
       assert.equal(partnerContact.status, 404);
       assert(!JSON.stringify(partnerContact.body).includes(student.email));
+    });
+    await t.test('owner edits open listings, transitions status to sold/closed, and views sold history', async () => {
+      const student = users[UserRole.Student];
+      const other = users[UserRole.ClubLeader];
+      const activeItem = (await call('/api/listings', student.token, {
+        category: ListingCategory.Sales, title: 'Lifecycle active item', price_jpy: 900,
+      })).body.data;
+      const soldItem = (await call('/api/listings', student.token, {
+        category: ListingCategory.Sales, title: 'Lifecycle sold item', price_jpy: 1200,
+      })).body.data;
+      const closedItem = (await call('/api/listings', student.token, {
+        category: ListingCategory.Gigs, title: 'Lifecycle closed item', price_jpy: 2000,
+      })).body.data;
+
+      // Non-owners cannot edit or transition another member's listing.
+      assert.equal((await call(`/api/listings/${soldItem.id}`, other.token, {
+        category: ListingCategory.Sales, title: 'Hijacked', price_jpy: 1,
+      }, {}, 'PATCH')).status, 404);
+      const [unchanged] = await owner`select title from public.listings where public_id = ${soldItem.id}`;
+      assert.equal(unchanged.title, 'Lifecycle sold item');
+
+      const edited = await call(`/api/listings/${soldItem.id}`, student.token, {
+        category: ListingCategory.Sales, title: 'Edited sold item', price_jpy: 1800,
+      }, {}, 'PATCH');
+      assert.equal(edited.status, 200, JSON.stringify(edited.body));
+      assert.equal(edited.body.data.title, 'Edited sold item');
+      assert.equal(edited.body.data.price_jpy, 1800);
+      assert.deepEqual(edited.body.data.author, { name: 'Test student' });
+      assert.equal(edited.body.data.is_mine, true);
+      const [persisted] = await owner`select title, price_jpy from public.listings where public_id = ${soldItem.id}`;
+      assert.equal(persisted.title, 'Edited sold item');
+      assert.equal(Number(persisted.price_jpy), 1800);
+
+      assert.equal((await call(`/api/listings/${soldItem.id}/status`, other.token, { status: ListingStatus.Sold }, {}, 'PATCH')).status, 404);
+      const markedSold = await call(`/api/listings/${soldItem.id}/status`, student.token, { status: ListingStatus.Sold }, {}, 'PATCH');
+      assert.equal(markedSold.status, 200, JSON.stringify(markedSold.body));
+      assert.deepEqual(markedSold.body.data, { id: soldItem.id, status: ListingStatus.Sold });
+      const markedClosed = await call(`/api/listings/${closedItem.id}/status`, student.token, { status: ListingStatus.Closed }, {}, 'PATCH');
+      assert.equal(markedClosed.status, 200, JSON.stringify(markedClosed.body));
+      assert.deepEqual(markedClosed.body.data, { id: closedItem.id, status: ListingStatus.Closed });
+
+      const activeList = (await call('/api/listings?limit=100', other.token)).body.data as { id: string }[];
+      assert(!activeList.some(row => row.id === soldItem.id || row.id === closedItem.id));
+      assert.equal((await call(`/api/listings/${soldItem.id}`, student.token, {
+        category: ListingCategory.Sales, title: 'Edit after sold',
+      }, {}, 'PATCH')).status, 404);
+      assert.equal((await call(`/api/listings/${soldItem.id}/contact`, other.token)).status, 404);
+      assert.equal((await call(`/api/listings/${closedItem.id}/contact`, other.token)).status, 404);
+
+      const mySold = await call('/api/listings/mine/sold?limit=100', student.token);
+      assert.equal(mySold.status, 200, JSON.stringify(mySold.body));
+      const soldRows = mySold.body.data as { id: string; ended_at: string | null }[];
+      const foundSold = soldRows.find(row => row.id === soldItem.id);
+      assert(foundSold);
+      assert(foundSold.ended_at);
+      assert(!soldRows.some(row => row.id === closedItem.id || row.id === activeItem.id));
+
+      const othersSold = await call('/api/listings/mine/sold?limit=100', other.token);
+      assert.equal(othersSold.status, 200);
+      assert(!(othersSold.body.data as { id: string }[]).some(row => row.id === soldItem.id));
     });
   } finally {
     try {

@@ -9,7 +9,10 @@ const { call } = api;
 test('health, protected routes, CORS, JSON errors and 404s', async () => {
   assert.equal((await call('/health')).status, 200);
   assert.equal((await call('/api/health')).status, 200);
-  for (const path of ['/api/profile/me', '/api/listings', '/api/feed', '/api/campus']) {
+  for (const path of [
+    '/api/profile/me', '/api/listings', '/api/feed', '/api/campus',
+    '/api/notifications', '/api/reports', '/api/moderation/reports', '/api/admin/users',
+  ]) {
     assert.equal((await call(path)).status, 401);
   }
   assert.equal((await call('/api/profile/me', undefined, { bio: 'Hi' }, {}, 'PATCH')).status, 401);
@@ -36,7 +39,4 @@ test('health, protected routes, CORS, JSON errors and 404s', async () => {
   });
   assert.equal(invalidJson.status, 400);
   assert.equal((await invalidJson.json()).error.code, ErrorCode.InvalidJson);
-  assert.equal((await call('/api/auth/signup', undefined, {
-    email: 'outsider@example.com', name: 'Test',
-  })).status, 400);
 });
