@@ -65,7 +65,7 @@ confirmation enabled in Supabase Auth.
 | `clubs`, `club_events`, `club_posts` | Member-visible clubs and their content; hidden posts are visible only to admins/moderators through moderation queries; partner pages are scoped | Club leaders/managers edit pages and publish; admins manage clubs; admins/moderators manage post visibility and deletion |
 | `club_members`, `club_requests` | Own membership/requests; club leaders/managers and admins see relevant rows | Members request membership or club creation; leaders/managers handle membership and admins review club requests |
 | `notifications`, `push_subscriptions` | Own notifications and devices | Members manage read state and devices; the system creates notifications |
-| `content_reports` | Admins/moderators; reporters can read their own reports at the database level (no API exposes them) | Confirmed members submit reports; admins and moderators resolve or dismiss them |
+| `content_reports` | Admins/moderators; reporters can read their own reports at the database level (no API exposes them) | Confirmed members submit reports; admins and moderators resolve or dismiss them; admins assign open reports to moderators/admins via `private.assign_report` |
 
 The table above describes backend operations under RLS, not direct browser access.
 The `moderator` profile role otherwise retains student permissions. Hidden-content

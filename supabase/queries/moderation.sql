@@ -40,12 +40,17 @@ select r.public_id as id, r.target_kind as kind, r.target_public_id as target_id
     when 'feed_post' then case when f.id is null then null else f.hidden_at is not null end
     when 'club_post' then case when p.id is null then null else p.hidden_at is not null end
   end as target_hidden,
-  r.reason, r.status, r.created_at, r.resolved_at
+  r.reason, r.status, r.created_at, r.resolved_at,
+  private.staff_public_id(r.assigned_to) as assignee_id,
+  private.author_name(r.assigned_to) as assignee_name,
+  r.assigned_at,
+  coalesce(r.assigned_to = (select private.current_profile_id()), false) as assigned_to_me
 from public.content_reports r
 left join public.listings l on r.target_kind = 'listing' and l.public_id = r.target_public_id
 left join public.feed_posts f on r.target_kind = 'feed_post' and f.public_id = r.target_public_id
 left join public.club_posts p on r.target_kind = 'club_post' and p.public_id = r.target_public_id
 where r.status = :status!::text
+  and (:assigned::text is null or (:assigned::text = 'me' and r.assigned_to = (select private.current_profile_id())) or (:assigned::text = 'unassigned' and r.assigned_to is null))
 order by r.created_at desc, r.id desc
 limit :limit!::int offset :offset!::int;
 

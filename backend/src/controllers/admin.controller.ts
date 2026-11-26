@@ -15,6 +15,11 @@ import { ErrorCode } from '../types/errorCode.js';
 const hasChange = (body: object) => Object.keys(body).length > 0;
 
 export const adminIdParams = z.strictObject({ id: z.uuid() });
+export const adminUsersQuery = pageSchema.extend({
+  search: z.string().trim().min(1).max(100).optional(),
+  role: z.enum(UserRole).optional(),
+});
+export const assignReportBody = z.strictObject({ assigneeId: z.uuid().nullable() });
 export const setUserRoleBody = z.strictObject({ role: z.enum(UserRole) });
 export const moderateListingBody = z.strictObject({
   status: z.enum(ListingStatus).optional(),
@@ -31,9 +36,22 @@ const postNotFound = () => new HttpError(404, ErrorCode.NotFound, 'That feed pos
 
 export const getUsers: RequestHandler = async (req, res) => {
   assertAuthenticated(req);
-  const { limit, offset } = res.locals.query as z.infer<typeof pageSchema>;
-  const data = await req.db(tx => q.getUsers.run({ limit, offset }, tx));
+  const { limit, offset, search, role } = res.locals.query as z.infer<typeof adminUsersQuery>;
+  const data = await req.db(tx => q.getUsers.run({ limit, offset, search: search ?? null, role: role ?? null }, tx));
   res.json({ data });
+};
+
+export const assignReport: RequestHandler = async (req, res) => {
+  assertAuthenticated(req);
+  const { id } = res.locals.params as z.infer<typeof adminIdParams>;
+  const { assigneeId } = res.locals.body as z.infer<typeof assignReportBody>;
+  const [row] = await req.db(tx => q.assignReport.run({ id, assigneeId }, tx));
+  if (!row) throw notFound('Open report not found.');
+  res.json({ data: {
+    id: row.id,
+    assignee: row.assignee_id ? { id: row.assignee_id, name: row.assignee_name } : null,
+    assigned_at: row.assigned_at,
+  } });
 };
 
 export const getListings: RequestHandler = async (req, res) => {

@@ -111,7 +111,8 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | PATCH | `/api/listings/:id/status` | Listing author; active listing to `{ status: "sold" \| "closed" }` |
 | GET | `/api/feed` | Confirmed member |
 | POST | `/api/feed` | Club leader/admin for events; club leader/partner/admin or approved club managers for perks (including moderators) |
-| GET | `/api/admin/users` | Admin; members' public `id`, name, role, photo, join date (`?limit&offset`) |
+| GET | `/api/admin/users` | Admin; members' public `id`, name, role, photo, join date (`?search&role&limit&offset`, case-insensitive name match; never emails or Auth IDs) |
+| PATCH | `/api/admin/reports/:id/assignee` | Admin; `{ assigneeId }` public UUID of a moderator/admin, or `null` to unassign; open reports only |
 | PATCH | `/api/admin/users/:id` | Admin; `{ role }` for another member (not yourself), via `private.set_profile_role` |
 | GET | `/api/admin/listings` | Admin; all listings, any status (`?limit&offset`) |
 | PATCH | `/api/admin/listings/:id` | Admin; any listing's `status`, `title` or `description` |
@@ -139,7 +140,7 @@ Health returns `{ status: "ok" }` and checks process liveness only.
 | GET | `/api/campus/club-requests` | Confirmed member; own submitted club creation requests |
 | POST | `/api/campus/club-requests` | Confirmed member; submit a club creation request for admin review |
 | POST | `/api/reports` | Confirmed member; report visible listing, feed post, or club post |
-| GET | `/api/moderation/reports` | Admin or moderator; reports by status (`?status&limit&offset`), without reporter identity |
+| GET | `/api/moderation/reports` | Admin or moderator; reports by status and assignment (`?status&assigned&limit&offset`, `assigned=me|unassigned`; includes assignee, never reporter identity) |
 | PATCH | `/api/moderation/reports/:id` | Admin or moderator; resolve or dismiss an open report |
 | GET | `/api/moderation/content` | Admin or moderator; scan content by required `kind`, optional `hidden`, and pagination |
 | PATCH | `/api/moderation/content/:kind/:id` | Admin or moderator; hide or restore content |

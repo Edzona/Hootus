@@ -5,7 +5,7 @@ import {
   moderationContentBody, moderationContentParams, moderationContentQuery, moderationReportBody,
   moderationReportParams, reportBody, reportListQuery,
 } from '../../src/controllers/moderation.controller.js';
-import { ModerationTarget, ReportStatus } from '../../src/types/domain.js';
+import { ModerationTarget, ReportAssignment, ReportStatus } from '../../src/types/domain.js';
 import { uuid } from '../helpers/fakes.js';
 
 describe('moderation validation', () => {
@@ -30,6 +30,9 @@ describe('moderation validation', () => {
       assert.deepEqual(reportListQuery.parse({}), { limit: 20, offset: 0 });
       assert.equal(reportListQuery.parse({ status: 'dismissed' }).status, ReportStatus.Dismissed);
       assert.equal(reportListQuery.safeParse({ status: 'closed' }).success, false);
+      assert.equal(reportListQuery.parse({ assigned: 'me' }).assigned, ReportAssignment.Me);
+      assert.equal(reportListQuery.parse({ assigned: 'unassigned' }).assigned, ReportAssignment.Unassigned);
+      assert.equal(reportListQuery.safeParse({ assigned: 'anyone' }).success, false);
     });
   });
 

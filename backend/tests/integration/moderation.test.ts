@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { FeedPostKind, ListingCategory, UserRole } from '../../src/types/domain.js';
 import { createTestApi, withUser } from '../helpers/api.js';
@@ -82,6 +83,58 @@ test('reports and moderation enforce privacy, permissions, and hidden-content be
       await assert.rejects(withUser(student.id, tx => tx`insert into public.content_reports
         (reporter_id, target_kind, target_public_id, reason)
         values (${reporter.id}, 'listing', ${listing.body.data.id}, 'Spoofed reporter')`));
+    });
+
+    await t.test('admins assign open reports to staff; assignment stays function-only', async () => {
+      const assignPath = `/api/admin/reports/${listingReportId}/assignee`;
+      const assigned = await call(assignPath, admin.token, { assigneeId: moderator.publicId }, {}, 'PATCH');
+      assert.equal(assigned.status, 200, JSON.stringify(assigned.body));
+      assert.equal(assigned.body.data.id, listingReportId);
+      assert.deepEqual(assigned.body.data.assignee, { id: moderator.publicId, name: 'Test moderator' });
+      assert(assigned.body.data.assigned_at);
+
+      const adminView = (await call('/api/moderation/reports', admin.token)).body.data
+        .find((item: { id: string }) => item.id === listingReportId);
+      assert.deepEqual(adminView.assignee, { id: moderator.publicId, name: 'Test moderator' });
+      assert.equal(adminView.assigned_to_me, false);
+      const moderatorView = (await call('/api/moderation/reports', moderator.token)).body.data
+        .find((item: { id: string }) => item.id === listingReportId);
+      assert.deepEqual(moderatorView.assignee, { id: moderator.publicId, name: 'Test moderator' });
+      assert.equal(moderatorView.assigned_to_me, true);
+      const mine = await call('/api/moderation/reports?assigned=me', moderator.token);
+      assert(mine.body.data.some((item: { id: string }) => item.id === listingReportId));
+      const unassignedList = await call('/api/moderation/reports?assigned=unassigned', moderator.token);
+      assert(!unassignedList.body.data.some((item: { id: string }) => item.id === listingReportId));
+
+      assert.equal((await call(assignPath, admin.token, { assigneeId: student.publicId }, {}, 'PATCH')).status, 400);
+      assert.equal((await call(assignPath, admin.token, { assigneeId: randomUUID() }, {}, 'PATCH')).status, 400);
+      assert.equal((await call(assignPath, admin.token, {}, {}, 'PATCH')).status, 400);
+      assert.equal((await call(assignPath, moderator.token, { assigneeId: moderator.publicId }, {}, 'PATCH')).status, 403);
+      assert.equal((await call(assignPath, student.token, { assigneeId: student.publicId }, {}, 'PATCH')).status, 403);
+      assert.equal((await call(`/api/admin/reports/${randomUUID()}/assignee`, admin.token, { assigneeId: moderator.publicId }, {}, 'PATCH')).status, 404);
+
+      const unassigned = await call(assignPath, admin.token, { assigneeId: null }, {}, 'PATCH');
+      assert.equal(unassigned.status, 200, JSON.stringify(unassigned.body));
+      assert.equal(unassigned.body.data.assignee, null);
+      assert.equal(unassigned.body.data.assigned_at, null);
+      const reassigned = await call(assignPath, admin.token, { assigneeId: moderator.publicId }, {}, 'PATCH');
+      assert.equal(reassigned.status, 200, JSON.stringify(reassigned.body));
+
+      const otherReport = await call('/api/reports', users[UserRole.ClubLeader].token, {
+        kind: 'feed_post', id: perk.body.data.id, reason: 'Resolved report assignment test',
+      });
+      assert.equal(otherReport.status, 201, JSON.stringify(otherReport.body));
+      assert.equal((await call(`/api/moderation/reports/${otherReport.body.data.id}`, moderator.token,
+        { status: 'resolved' }, {}, 'PATCH')).status, 200);
+      assert.equal((await call(`/api/admin/reports/${otherReport.body.data.id}/assignee`, admin.token,
+        { assigneeId: moderator.publicId }, {}, 'PATCH')).status, 404);
+
+      const [privileges] = await owner`select
+        has_column_privilege('hootus_api', 'public.content_reports', 'assigned_to', 'UPDATE') as assigned_to,
+        has_column_privilege('hootus_api', 'public.content_reports', 'assigned_at', 'UPDATE') as assigned_at`;
+      assert.deepEqual({ ...privileges }, { assigned_to: false, assigned_at: false });
+      await assert.rejects(withUser(admin.id, tx => tx`update public.content_reports
+        set assigned_to = null where public_id = ${listingReportId}`));
     });
 
     await t.test('moderators can hide and restore content; ordinary readers and RLS cannot see hidden rows', async () => {

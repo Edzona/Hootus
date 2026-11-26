@@ -9,6 +9,8 @@ export type stringArray = (string)[];
 export interface IGetUsersParams {
   limit: number;
   offset: number;
+  role?: string | null | void;
+  search?: string | null | void;
 }
 
 /** 'GetUsers' return type */
@@ -26,7 +28,7 @@ export interface IGetUsersQuery {
   result: IGetUsersResult;
 }
 
-const getUsersIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":194,"b":200}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":214,"b":221}]}],"statement":"-- Admin directory: public fields only, never email or Auth IDs.\nselect public_id as id, full_name, role, avatar_url, created_at\nfrom public.profiles\norder by created_at desc, profiles.id limit :limit!::int offset :offset!::int"};
+const getUsersIR: any = {"usedParamSet":{"search":true,"role":true,"limit":true,"offset":true},"params":[{"name":"search","required":false,"transform":{"type":"scalar"},"locs":[{"a":157,"b":163},{"a":227,"b":233}]},{"name":"role","required":false,"transform":{"type":"scalar"},"locs":[{"a":255,"b":259},{"a":285,"b":289}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":342,"b":348}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":362,"b":369}]}],"statement":"-- Admin directory: public fields only, never email or Auth IDs.\nselect public_id as id, full_name, role, avatar_url, created_at\nfrom public.profiles\nwhere (:search::text is null or strpos(lower(coalesce(full_name, '')), lower(:search::text)) > 0)\n  and (:role::text is null or role = :role::text)\norder by created_at desc, profiles.id limit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -34,6 +36,8 @@ const getUsersIR: any = {"usedParamSet":{"limit":true,"offset":true},"params":[{
  * -- Admin directory: public fields only, never email or Auth IDs.
  * select public_id as id, full_name, role, avatar_url, created_at
  * from public.profiles
+ * where (:search::text is null or strpos(lower(coalesce(full_name, '')), lower(:search::text)) > 0)
+ *   and (:role::text is null or role = :role::text)
  * order by created_at desc, profiles.id limit :limit!::int offset :offset!::int
  * ```
  */
@@ -80,6 +84,38 @@ const getListingsIR: any = {"usedParamSet":{"limit":true,"offset":true},"params"
  * ```
  */
 export const getListings = new PreparedQuery<IGetListingsParams,IGetListingsResult>(getListingsIR);
+
+
+/** 'AssignReport' parameters type */
+export interface IAssignReportParams {
+  assigneeId?: string | null | void;
+  id: string;
+}
+
+/** 'AssignReport' return type */
+export interface IAssignReportResult {
+  assigned_at: Date | null;
+  assignee_id: string | null;
+  assignee_name: string | null;
+  id: string | null;
+}
+
+/** 'AssignReport' query type */
+export interface IAssignReportQuery {
+  params: IAssignReportParams;
+  result: IAssignReportResult;
+}
+
+const assignReportIR: any = {"usedParamSet":{"id":true,"assigneeId":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":78,"b":81}]},{"name":"assigneeId","required":false,"transform":{"type":"scalar"},"locs":[{"a":90,"b":100}]}],"statement":"select id, assignee_id, assignee_name, assigned_at\nfrom private.assign_report(:id!::uuid, :assigneeId::uuid)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * select id, assignee_id, assignee_name, assigned_at
+ * from private.assign_report(:id!::uuid, :assigneeId::uuid)
+ * ```
+ */
+export const assignReport = new PreparedQuery<IAssignReportParams,IAssignReportResult>(assignReportIR);
 
 
 /** 'SetUserRole' parameters type */

@@ -3,21 +3,40 @@ import { Wordmark } from './Logo'
 import { apiRequest } from '../lib/api'
 import { formatShortDate } from '../lib/format'
 import { PartnerCategory, partnerCategories } from '../../../backend/src/types/clubOptions'
+import { ReportAssignment, ReportStatus } from '../../../backend/src/types/domain'
 import ClubDesk from './admin/ClubDesk'
+import ReportRow from './moderation/ReportRow'
 
 const roles = { student: 'Student', club_leader: 'Club leader', partner: 'Partner', admin: 'Admin', moderator: 'Moderator' }
 const statuses = ['active', 'sold', 'closed']
-const tabs = [['users', 'Users'], ['clubRequests', 'Club requests'], ['clubs', 'Clubs'], ['partners', 'Partners'], ['listings', 'Listings'], ['feed', 'Feed posts']]
+const tabs = [['members', 'Users'], ['reports', 'Reports'], ['clubRequests', 'Club requests'], ['clubs', 'Clubs'], ['partners', 'Partners'], ['listings', 'Listings'], ['feed', 'Feed posts']]
 const sources = { users: '/admin/users', clubRequests: '/admin/club-requests', listings: '/admin/listings', feed: '/feed' }
 const PAGE = 100
 const fetchPage = (list, offset, signal) => apiRequest(`${sources[list]}?limit=${PAGE}&offset=${offset}`, { signal })
 
+const memberParams = (filter, offset) => {
+  const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) })
+  if (filter.search.trim()) params.set('search', filter.search.trim())
+  if (filter.role) params.set('role', filter.role)
+  return params
+}
+const fetchMembers = (filter, offset, signal) => apiRequest(`/admin/users?${memberParams(filter, offset)}`, { signal })
+const fetchReports = (filter, offset, signal) => {
+  const params = new URLSearchParams({ status: filter.status, limit: String(PAGE), offset: String(offset) })
+  if (filter.assigned !== 'all') params.set('assigned', filter.assigned)
+  return apiRequest(`/moderation/reports?${params}`, { signal })
+}
+
 export default function Admin() {
   const [state, setState] = useState({ loading: true, error: '', allowed: false })
   const [meId, setMeId] = useState(null)
-  const [data, setData] = useState({ users: [], clubRequests: [], listings: [], feed: [] })
-  const [more, setMore] = useState({ users: false, clubRequests: false, listings: false, feed: false })
-  const [tab, setTab] = useState('users')
+  const [data, setData] = useState({ users: [], members: [], reports: [], clubRequests: [], listings: [], feed: [] })
+  const [more, setMore] = useState({ users: false, members: false, reports: false, clubRequests: false, listings: false, feed: false })
+  const [tab, setTab] = useState('members')
+  const [memberFilter, setMemberFilter] = useState({ search: '', role: '' })
+  const [appliedMemberFilter, setAppliedMemberFilter] = useState({ search: '', role: '' })
+  const [reportFilter, setReportFilter] = useState({ status: ReportStatus.Open, assigned: 'all' })
+  const [staff, setStaff] = useState([])
   const [busy, setBusy] = useState(null)
   const [actionError, setActionError] = useState('')
   const [partnerNotice, setPartnerNotice] = useState('')
@@ -34,9 +53,18 @@ export default function Admin() {
       .then(async profile => {
         if (profile.role !== 'admin') return setState({ loading: false, error: '', allowed: false })
         setMeId(profile.id)
-        const [users, clubRequests, listings, feed] = await Promise.all(['users', 'clubRequests', 'listings', 'feed'].map(list => fetchPage(list, 0, signal)))
-        setData({ users, clubRequests, listings, feed })
-        setMore({ users: users.length === PAGE, clubRequests: clubRequests.length === PAGE, listings: listings.length === PAGE, feed: feed.length === PAGE })
+        const [users, reports, clubRequests, listings, feed, moderators, admins] = await Promise.all([
+          fetchPage('users', 0, signal), fetchReports({ status: ReportStatus.Open, assigned: 'all' }, 0, signal),
+          fetchPage('clubRequests', 0, signal), fetchPage('listings', 0, signal), fetchPage('feed', 0, signal),
+          apiRequest('/admin/users?role=moderator&limit=100', { signal }),
+          apiRequest('/admin/users?role=admin&limit=100', { signal }),
+        ])
+        setData({ users, members: users, reports, clubRequests, listings, feed })
+        setStaff([...admins, ...moderators])
+        setMore({
+          users: users.length === PAGE, members: users.length === PAGE, reports: reports.length === PAGE,
+          clubRequests: clubRequests.length === PAGE, listings: listings.length === PAGE, feed: feed.length === PAGE,
+        })
         setState({ loading: false, error: '', allowed: true })
       })
       .catch(err => { if (!signal.aborted) setState({ loading: false, error: err.message, allowed: false }) })
@@ -58,7 +86,10 @@ export default function Admin() {
 
   // Status changes stay in the admin listing; deleted rows leave both lists.
   function loadMore(list) {
-    run(`more:${list}`, () => fetchPage(list, data[list].length), page => {
+    const request = () => list === 'members' ? fetchMembers(appliedMemberFilter, data.members.length)
+      : list === 'reports' ? fetchReports(reportFilter, data.reports.length)
+      : fetchPage(list, data[list].length)
+    run(`more:${list}`, request, page => {
       setData(current => {
         const seen = new Set(current[list].map(row => row.id))
         return { ...current, [list]: [...current[list], ...page.filter(row => !seen.has(row.id))] }
@@ -73,7 +104,7 @@ export default function Admin() {
   function setUserRole(user, role) {
     if (!window.confirm(`Change ${user.full_name || 'this member'} to ${roles[role]}?`)) return
     run(user.id, () => apiRequest(`/admin/users/${user.id}`, { method: 'PATCH', body: { role } }),
-      updated => replace('users', updated))
+      updated => { replace('users', updated); replace('members', updated) })
   }
 
   function setListingStatus(listing, status) {
@@ -100,6 +131,55 @@ export default function Admin() {
       setPartnerForm({ email: '', contactName: '', orgName: '', handle: '', category: PartnerCategory.RealEstate, description: '', hours: '', location: '' })
       setAttempt(a => a + 1)
     })
+  }
+
+  function reloadReports(filter = reportFilter) {
+    run('reports', () => fetchReports(filter, 0), page => {
+      setData(current => ({ ...current, reports: page }))
+      setMore(current => ({ ...current, reports: page.length === PAGE }))
+    })
+  }
+
+  function loadMembers(filter) {
+    run('members', () => fetchMembers(filter, 0), page => {
+      setAppliedMemberFilter(filter)
+      setData(current => ({ ...current, members: page }))
+      setMore(current => ({ ...current, members: page.length === PAGE }))
+    })
+  }
+
+  function searchMembers(event) {
+    event.preventDefault()
+    loadMembers(memberFilter)
+  }
+
+  function clearMemberFilter() {
+    const filter = { search: '', role: '' }
+    setMemberFilter(filter)
+    loadMembers(filter)
+  }
+
+  function changeReportFilter(field, value) {
+    const filter = { ...reportFilter, [field]: value }
+    setReportFilter(filter)
+    reloadReports(filter)
+  }
+
+  function assignReport(report, assigneeId) {
+    run(report.id, () => apiRequest(`/admin/reports/${report.id}/assignee`, { method: 'PATCH', body: { assigneeId } }), () => reloadReports())
+  }
+
+  function updateReportStatus(report, status) {
+    run(report.id, () => apiRequest(`/moderation/reports/${report.id}`, { method: 'PATCH', body: { status } }), () => reloadReports())
+  }
+
+  function toggleReportTarget(kind, id, hidden) {
+    run(id, () => apiRequest(`/moderation/content/${kind}/${id}`, { method: 'PATCH', body: { hidden } }), () => reloadReports())
+  }
+
+  function deleteReportTarget(kind, id, title) {
+    if (!window.confirm(`Delete "${title || 'this content'}"? This cannot be undone.`)) return
+    run(id, () => apiRequest(`/moderation/content/${kind}/${id}`, { method: 'DELETE' }), () => reloadReports())
   }
 
   function saveFeedPost(post, changes, done) {
@@ -145,7 +225,28 @@ export default function Admin() {
               </div>
               {actionError && <p role="alert" className="mt-6 border-2 border-cherry bg-white p-4 text-cherry">{actionError}</p>}
               <section className="mt-6 border-2 border-ink bg-white shadow-hard" aria-live="polite">
-                {tab === 'users' && <Rows items={data.users} empty="No members yet." render={user => (
+                {tab === 'members' && (
+                  <>
+                    <form onSubmit={searchMembers} className="flex flex-wrap items-end gap-4 border-b border-ink/20 p-5">
+                      <label className="block">
+                        <span className="eyebrow text-ink/70">Search members by name</span>
+                        <input value={memberFilter.search} maxLength={100}
+                          onChange={event => setMemberFilter(filter => ({ ...filter, search: event.target.value }))}
+                          className="mt-1 border-2 border-ink bg-paper px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block">
+                        <span className="eyebrow text-ink/70">Role</span>
+                        <select value={memberFilter.role}
+                          onChange={event => setMemberFilter(filter => ({ ...filter, role: event.target.value }))}
+                          className="mt-1 border-2 border-ink bg-paper px-3 py-2 text-sm">
+                          <option value="">All roles</option>
+                          {Object.entries(roles).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        </select>
+                      </label>
+                      <button type="submit" disabled={busy === 'members'} className="border-2 border-ink bg-ink px-4 py-2 font-mono text-xs uppercase text-paper disabled:opacity-50">Search</button>
+                      <button type="button" disabled={busy === 'members'} onClick={clearMemberFilter} className="font-mono text-xs uppercase underline disabled:opacity-50">Clear</button>
+                    </form>
+                    <Rows items={data.members} empty="No members match this search." render={user => (
                   <>
                     <div className="min-w-0">
                       <p className="break-words font-display text-xl font-extrabold">{user.full_name || 'Unnamed member'}</p>
@@ -164,7 +265,42 @@ export default function Admin() {
                       </label>
                     )}
                   </>
-                )} />}
+                )} />
+                  </>
+                )}
+                {tab === 'reports' && (
+                  <>
+                    <div className="flex flex-wrap gap-5 border-b border-ink/20 p-5">
+                      <label className="inline-flex items-center gap-3 font-mono text-xs uppercase">
+                        Status
+                        <select value={reportFilter.status} disabled={busy === 'reports'}
+                          onChange={event => changeReportFilter('status', event.target.value)}
+                          className="border-2 border-ink bg-white px-3 py-2">
+                          {Object.values(ReportStatus).map(status => <option key={status} value={status}>{status}</option>)}
+                        </select>
+                      </label>
+                      <label className="inline-flex items-center gap-3 font-mono text-xs uppercase">
+                        Assignment
+                        <select value={reportFilter.assigned} disabled={busy === 'reports'}
+                          onChange={event => changeReportFilter('assigned', event.target.value)}
+                          className="border-2 border-ink bg-white px-3 py-2">
+                          <option value="all">All</option>
+                          <option value={ReportAssignment.Me}>Assigned to me</option>
+                          <option value={ReportAssignment.Unassigned}>Unassigned</option>
+                        </select>
+                      </label>
+                    </div>
+                    {data.reports.length ? (
+                      <ul>
+                        {data.reports.map(report => (
+                          <ReportRow key={report.id} report={report} busy={busy}
+                            onStatus={updateReportStatus} onToggleHidden={toggleReportTarget} onDelete={deleteReportTarget}
+                            assign={{ staff, onAssign: assignReport }} />
+                        ))}
+                      </ul>
+                    ) : <p className="p-6 text-ink/60">No reports match this filter.</p>}
+                  </>
+                )}
                 {tab === 'clubRequests' && <Rows items={data.clubRequests} empty="No club requests to review." render={req => (
                   <>
                     <div className="min-w-0 max-w-xl">

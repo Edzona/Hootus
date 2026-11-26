@@ -54,6 +54,43 @@ test('admin API access, moderation and privacy', integrationOptions, async t => 
       assert(!text.includes(users[UserRole.Student].id));
     });
 
+    await t.test('admin member search filters by name and role without exposing private data', async () => {
+      const all = (await call('/api/admin/users?limit=100', admin)).body.data;
+
+      const named = await call('/api/admin/users?search=STUDENT&limit=100', admin);
+      assert.equal(named.status, 200);
+      assert(named.body.data.some((row: { id: string }) => row.id === users[UserRole.Student].publicId));
+      for (const row of named.body.data) assert((row.full_name ?? '').toLowerCase().includes('student'), row.full_name);
+
+      const literal = await call('/api/admin/users?search=%25&limit=100', admin);
+      assert.equal(literal.status, 200);
+      assert.equal(literal.body.data.length, 0);
+      assert(literal.body.data.length < all.length);
+
+      const moderators = await call('/api/admin/users?role=moderator&limit=100', admin);
+      assert.equal(moderators.status, 200);
+      assert(moderators.body.data.length > 0);
+      for (const row of moderators.body.data) assert.equal(row.role, UserRole.Moderator);
+      assert(moderators.body.data.some((row: { id: string }) => row.id === users[UserRole.Moderator].publicId));
+
+      const combined = await call('/api/admin/users?search=moderator&role=moderator&limit=100', admin);
+      assert.equal(combined.status, 200);
+      for (const row of combined.body.data) {
+        assert.equal(row.role, UserRole.Moderator);
+        assert((row.full_name ?? '').toLowerCase().includes('moderator'));
+      }
+      assert(combined.body.data.some((row: { id: string }) => row.id === users[UserRole.Moderator].publicId));
+      const combinedText = JSON.stringify(combined.body);
+      assert(!combinedText.includes(users[UserRole.Moderator].email));
+      assert(!combinedText.includes(users[UserRole.Moderator].id));
+
+      assert.equal((await call('/api/admin/users?role=emperor', admin)).status, 400);
+      assert.equal((await call('/api/admin/users?search=%20%20', admin)).status, 400);
+      for (const token of nonAdmins) {
+        assert.equal((await call('/api/admin/users?search=x&role=student', token)).status, 403);
+      }
+    });
+
     await t.test('admin changes another member\'s role but not their own', async () => {
       const student = users[UserRole.Student];
       const path = `/api/admin/users/${student.publicId}`;

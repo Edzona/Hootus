@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiRequest } from '../lib/api'
-import { ModerationTarget, ReportStatus } from '../../../backend/src/types/domain'
+import ReportRow from './moderation/ReportRow'
+import { ModerationTarget, ReportAssignment, ReportStatus } from '../../../backend/src/types/domain'
 
 const PAGE = 50
 const tabs = [
@@ -14,6 +15,7 @@ export default function Moderation() {
   const [access, setAccess] = useState({ loading: true, allowed: false, error: '' })
   const [tab, setTab] = useState('reports')
   const [reportStatus, setReportStatus] = useState(ReportStatus.Open)
+  const [assignedFilter, setAssignedFilter] = useState('all')
   const [hiddenFilter, setHiddenFilter] = useState('all')
   const [reports, setReports] = useState([])
   const [content, setContent] = useState([])
@@ -49,7 +51,8 @@ export default function Moderation() {
     else setLoadingMore(true)
     setError('')
     try {
-      const page = await apiRequest(`/moderation/reports?status=${reportStatus}&limit=${PAGE}&offset=${offset}`)
+      const assigned = assignedFilter === 'all' ? '' : `&assigned=${assignedFilter}`
+      const page = await apiRequest(`/moderation/reports?status=${reportStatus}&limit=${PAGE}&offset=${offset}${assigned}`)
       setReports(current => offset === 0 ? page : [...current, ...page.filter(row => !current.some(item => item.id === row.id))])
       setHasMore(page.length === PAGE)
     } catch (err) {
@@ -58,7 +61,7 @@ export default function Moderation() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [reportStatus])
+  }, [reportStatus, assignedFilter])
 
   const loadContent = useCallback(async (offset = 0) => {
     if (!contentKind) return
@@ -82,7 +85,7 @@ export default function Moderation() {
     if (!access.allowed) return
     if (tab === 'reports') loadReports()
     else loadContent()
-  }, [access.allowed, tab, reportStatus, hiddenFilter, loadReports, loadContent])
+  }, [access.allowed, tab, reportStatus, assignedFilter, hiddenFilter, loadReports, loadContent])
 
   async function updateReport(report, status) {
     setBusy(report.id)
@@ -166,12 +169,22 @@ export default function Moderation() {
                 ))}
               </div>
               {tab === 'reports' ? (
-                <label className="mt-5 inline-flex items-center gap-3 font-mono text-xs uppercase">
-                  Report status
-                  <select value={reportStatus} onChange={event => setReportStatus(event.target.value)} className="border-2 border-ink bg-white px-3 py-2">
-                    {Object.values(ReportStatus).map(status => <option key={status} value={status}>{status}</option>)}
-                  </select>
-                </label>
+                <div className="mt-5 flex flex-wrap gap-5">
+                  <label className="inline-flex items-center gap-3 font-mono text-xs uppercase">
+                    Report status
+                    <select value={reportStatus} onChange={event => setReportStatus(event.target.value)} className="border-2 border-ink bg-white px-3 py-2">
+                      {Object.values(ReportStatus).map(status => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  </label>
+                  <label className="inline-flex items-center gap-3 font-mono text-xs uppercase">
+                    Assignment
+                    <select value={assignedFilter} onChange={event => setAssignedFilter(event.target.value)} className="border-2 border-ink bg-white px-3 py-2">
+                      <option value="all">All</option>
+                      <option value={ReportAssignment.Me}>Assigned to me</option>
+                      <option value={ReportAssignment.Unassigned}>Unassigned</option>
+                    </select>
+                  </label>
+                </div>
               ) : (
                 <label className="mt-5 inline-flex items-center gap-3 font-mono text-xs uppercase">
                   Visibility
@@ -190,36 +203,10 @@ export default function Moderation() {
                 {loading ? <p role="status" className="p-6 font-mono text-sm text-ink/60">Loading content…</p> : tab === 'reports' ? (
                   reports.length ? (
                     <ul>
-                      {reports.map(report => {
-                        const deleted = report.target_hidden === null
-                        const title = report.target_title || 'Content deleted'
-                        return (
-                          <li key={report.id} className="border-b border-ink/20 p-5 last:border-b-0">
-                            <div className="flex flex-wrap items-start justify-between gap-4">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-mono text-[10px] uppercase tracking-widest text-ink/55">{report.kind.replace('_', ' ')} · {report.status} · {report.target_hidden === true ? 'Hidden' : report.target_hidden === false ? 'Visible' : 'Deleted'}</p>
-                                <h2 className="mt-1 break-words font-display text-xl font-extrabold">{title}</h2>
-                                <p className="mt-1 font-mono text-xs text-ink/60">by {report.target_author?.name || 'Unknown member'} · {new Date(report.created_at).toLocaleString()}</p>
-                                <p className="mt-3 whitespace-pre-wrap text-sm">{report.reason}</p>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {report.status === ReportStatus.Open && (
-                                  <>
-                                    <button type="button" disabled={busy === report.id} onClick={() => updateReport(report, ReportStatus.Resolved)} className="border-2 border-ink bg-matcha px-3 py-1 font-mono text-[10px] uppercase disabled:opacity-50">Resolve</button>
-                                    <button type="button" disabled={busy === report.id} onClick={() => updateReport(report, ReportStatus.Dismissed)} className="border-2 border-ink bg-paper px-3 py-1 font-mono text-[10px] uppercase disabled:opacity-50">Dismiss</button>
-                                  </>
-                                )}
-                                {!deleted && (
-                                  <>
-                                    <button type="button" disabled={busy === report.target_id} onClick={() => updateTarget(report.kind, report.target_id, !report.target_hidden)} className="border-2 border-ink bg-sun px-3 py-1 font-mono text-[10px] uppercase disabled:opacity-50">{report.target_hidden ? 'Unhide' : 'Hide'}</button>
-                                    <button type="button" disabled={busy === report.target_id} onClick={() => deleteTarget(report.kind, report.target_id, title)} className="border-2 border-ink bg-cherry px-3 py-1 font-mono text-[10px] uppercase text-white disabled:opacity-50">Delete</button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </li>
-                        )
-                      })}
+                      {reports.map(report => (
+                        <ReportRow key={report.id} report={report} busy={busy}
+                          onStatus={updateReport} onToggleHidden={updateTarget} onDelete={deleteTarget} />
+                      ))}
                     </ul>
                   ) : <p className="p-6 text-ink/60">No reports match this status.</p>
                 ) : (

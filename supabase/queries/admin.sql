@@ -2,6 +2,8 @@
 -- Admin directory: public fields only, never email or Auth IDs.
 select public_id as id, full_name, role, avatar_url, created_at
 from public.profiles
+where (:search::text is null or strpos(lower(coalesce(full_name, '')), lower(:search::text)) > 0)
+  and (:role::text is null or role = :role::text)
 order by created_at desc, profiles.id limit :limit!::int offset :offset!::int;
 
 /* @name GetListings */
@@ -10,6 +12,10 @@ price_jpy::double precision as price_jpy, image_urls, location, status,
 created_at, updated_at, private.author_name(author_id) as author_name
 from public.listings
 order by created_at desc, listings.id limit :limit!::int offset :offset!::int;
+
+/* @name AssignReport */
+select id, assignee_id, assignee_name, assigned_at
+from private.assign_report(:id!::uuid, :assigneeId::uuid);
 
 /* @name SetUserRole */
 select id, full_name, role, avatar_url, created_at

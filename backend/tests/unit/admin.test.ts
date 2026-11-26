@@ -2,8 +2,8 @@ import '../helpers/unitEnv.js';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  adminClubBody, adminIdParams, createPartnerBody, getUsers, moderateFeedBody, moderateListingBody,
-  reviewClubRequestBody, setUserRole, setUserRoleBody, transferClubFounderBody,
+  adminClubBody, adminIdParams, adminUsersQuery, assignReport, assignReportBody, createPartnerBody, getUsers,
+  moderateFeedBody, moderateListingBody, reviewClubRequestBody, setUserRole, setUserRoleBody, transferClubFounderBody,
 } from '../../src/controllers/admin.controller.js';
 import { ClubCategory, FeedPostKind, ListingStatus, PartnerCategory, UserRole } from '../../src/types/domain.js';
 import { invoke, makeReq, makeRes, testUser, unusedDb, uuid } from '../helpers/fakes.js';
@@ -14,6 +14,33 @@ describe('admin validation', () => {
       assert.deepEqual(adminIdParams.parse({ id: uuid(1) }), { id: uuid(1) });
       assert.equal(adminIdParams.safeParse({ id: '12' }).success, false);
       assert.equal(adminIdParams.safeParse({ id: uuid(1), extra: 1 }).success, false);
+    });
+  });
+
+  describe('adminUsersQuery', () => {
+    it('accepts optional search and role filters with page defaults', () => {
+      assert.deepEqual(adminUsersQuery.parse({}), { limit: 20, offset: 0 });
+      assert.deepEqual(adminUsersQuery.parse({ search: ' sam ', role: 'moderator' }),
+        { limit: 20, offset: 0, search: 'sam', role: UserRole.Moderator });
+      for (const role of Object.values(UserRole)) assert.equal(adminUsersQuery.safeParse({ role }).success, true);
+    });
+
+    it('rejects unknown roles, blank or 101-char search, and extra keys', () => {
+      assert.equal(adminUsersQuery.safeParse({ role: 'root' }).success, false);
+      assert.equal(adminUsersQuery.safeParse({ search: '' }).success, false);
+      assert.equal(adminUsersQuery.safeParse({ search: '   ' }).success, false);
+      assert.equal(adminUsersQuery.safeParse({ search: 'x'.repeat(101) }).success, false);
+      assert.equal(adminUsersQuery.safeParse({ email: 'a@b.jp' }).success, false);
+    });
+  });
+
+  describe('assignReportBody', () => {
+    it('accepts a uuid assignee or null; rejects missing, invalid and extra keys', () => {
+      assert.deepEqual(assignReportBody.parse({ assigneeId: uuid(2) }), { assigneeId: uuid(2) });
+      assert.deepEqual(assignReportBody.parse({ assigneeId: null }), { assigneeId: null });
+      assert.equal(assignReportBody.safeParse({}).success, false);
+      assert.equal(assignReportBody.safeParse({ assigneeId: 'x' }).success, false);
+      assert.equal(assignReportBody.safeParse({ assigneeId: uuid(2), extra: 1 }).success, false);
     });
   });
 
@@ -106,6 +133,16 @@ describe('admin handlers', () => {
   describe('getUsers', () => {
     it('unauthenticated -> 401', async () => {
       await assert.rejects(invoke(getUsers, makeReq({ user: null }), makeRes({ query: { limit: 1, offset: 0 } })), { status: 401 });
+    });
+  });
+
+  describe('assignReport', () => {
+    it('unauthenticated -> 401', async () => {
+      await assert.rejects(
+        invoke(assignReport, makeReq({ user: null, db: unusedDb }),
+          makeRes({ params: { id: uuid(5) }, body: { assigneeId: uuid(2) } })),
+        { status: 401 },
+      );
     });
   });
 

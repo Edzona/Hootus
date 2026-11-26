@@ -40,3 +40,8 @@ export enum ReportStatus {
   Resolved = 'resolved',
   Dismissed = 'dismissed',
 }
+
+export enum ReportAssignment {
+  Me = 'me',
+  Unassigned = 'unassigned',
+}

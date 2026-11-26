@@ -4,7 +4,7 @@ import * as q from '../generated/moderation.queries.js';
 import { assertAuthenticated } from '../helpers/auth.js';
 import { notFound } from '../helpers/errors.js';
 import { pageSchema } from '../helpers/validation.js';
-import { ModerationTarget, ReportStatus } from '../types/domain.js';
+import { ModerationTarget, ReportAssignment, ReportStatus } from '../types/domain.js';
 
 const hiddenQuery = z.enum(['true', 'false']).transform(value => value === 'true').optional();
 
@@ -16,6 +16,7 @@ export const reportBody = z.strictObject({
 
 export const reportListQuery = pageSchema.extend({
   status: z.enum(ReportStatus).optional(),
+  assigned: z.enum(ReportAssignment).optional(),
 });
 
 export const moderationContentQuery = pageSchema.extend({
@@ -48,7 +49,7 @@ export const getModerationReports: RequestHandler = async (req, res) => {
   const page = res.locals.query as z.infer<typeof reportListQuery>;
   const data = await req.db(async tx => {
     const rows = await q.getModerationReports.run({
-      ...page, status: page.status ?? ReportStatus.Open,
+      ...page, status: page.status ?? ReportStatus.Open, assigned: page.assigned ?? null,
     }, tx);
     return rows.map(report => ({
       id: report.id,
@@ -59,6 +60,9 @@ export const getModerationReports: RequestHandler = async (req, res) => {
       target_hidden: report.target_hidden,
       reason: report.reason,
       status: report.status,
+      assignee: report.assignee_id ? { id: report.assignee_id, name: report.assignee_name } : null,
+      assigned_at: report.assigned_at,
+      assigned_to_me: report.assigned_to_me,
       created_at: report.created_at,
       resolved_at: report.resolved_at,
     }));

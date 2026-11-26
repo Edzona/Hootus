@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { pageSchema } from '../helpers/validation.js';
 import { validate } from '../middleware/validate.js';
 import {
-  adminIdParams, deleteFeedPost, deleteListing, getListings, getUsers, moderateFeedBody, moderateFeedPost, moderateListing,
+  adminIdParams, adminUsersQuery, assignReport, assignReportBody, deleteFeedPost, deleteListing, getListings, getUsers,
+  moderateFeedBody, moderateFeedPost, moderateListing,
   moderateListingBody, setUserRole, setUserRoleBody, getClubRequests, reviewClubRequest, reviewClubRequestBody,
   createPartner, createPartnerBody,
   adminClubBody, createAdminClub, deleteAdminClub, getAdminClub, getAdminClubs, transferAdminClubFounder, transferClubFounderBody,
@@ -11,7 +12,8 @@ import {
 // Mounted behind requireRole([UserRole.Admin]) in routes/index.ts.
 export const adminRoutes = Router();
 
-adminRoutes.get('/users', validate(pageSchema, 'query'), getUsers);
+adminRoutes.get('/users', validate(adminUsersQuery, 'query'), getUsers);
+adminRoutes.patch('/reports/:id/assignee', validate(adminIdParams, 'params'), validate(assignReportBody), assignReport);
 adminRoutes.get('/listings', validate(pageSchema, 'query'), getListings);
 adminRoutes.patch('/users/:id', validate(adminIdParams, 'params'), validate(setUserRoleBody), setUserRole);
 adminRoutes.patch('/listings/:id', validate(adminIdParams, 'params'), validate(moderateListingBody), moderateListing);

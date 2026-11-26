@@ -55,6 +55,7 @@ export const createContentReport = new PreparedQuery<ICreateContentReportParams,
 
 /** 'GetModerationReports' parameters type */
 export interface IGetModerationReportsParams {
+  assigned?: string | null | void;
   limit: number;
   offset: number;
   status: string;
@@ -62,6 +63,10 @@ export interface IGetModerationReportsParams {
 
 /** 'GetModerationReports' return type */
 export interface IGetModerationReportsResult {
+  assigned_at: Date | null;
+  assigned_to_me: boolean | null;
+  assignee_id: string | null;
+  assignee_name: string | null;
   created_at: Date;
   id: string;
   kind: string;
@@ -80,7 +85,7 @@ export interface IGetModerationReportsQuery {
   result: IGetModerationReportsResult;
 }
 
-const getModerationReportsIR: any = {"usedParamSet":{"status":true,"limit":true,"offset":true},"params":[{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":1167,"b":1174}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":1226,"b":1232}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":1246,"b":1253}]}],"statement":"select r.public_id as id, r.target_kind as kind, r.target_public_id as target_id,\n  case r.target_kind\n    when 'listing' then l.title\n    when 'feed_post' then f.title\n    when 'club_post' then left(p.body, 200)\n  end as target_title,\n  case r.target_kind\n    when 'listing' then private.author_name(l.author_id)\n    when 'feed_post' then private.author_name(f.author_id)\n    when 'club_post' then private.author_name(p.author_id)\n  end as target_author_name,\n  case r.target_kind\n    when 'listing' then case when l.id is null then null else l.hidden_at is not null end\n    when 'feed_post' then case when f.id is null then null else f.hidden_at is not null end\n    when 'club_post' then case when p.id is null then null else p.hidden_at is not null end\n  end as target_hidden,\n  r.reason, r.status, r.created_at, r.resolved_at\nfrom public.content_reports r\nleft join public.listings l on r.target_kind = 'listing' and l.public_id = r.target_public_id\nleft join public.feed_posts f on r.target_kind = 'feed_post' and f.public_id = r.target_public_id\nleft join public.club_posts p on r.target_kind = 'club_post' and p.public_id = r.target_public_id\nwhere r.status = :status!::text\norder by r.created_at desc, r.id desc\nlimit :limit!::int offset :offset!::int"};
+const getModerationReportsIR: any = {"usedParamSet":{"status":true,"assigned":true,"limit":true,"offset":true},"params":[{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":1388,"b":1395}]},{"name":"assigned","required":false,"transform":{"type":"scalar"},"locs":[{"a":1410,"b":1418},{"a":1438,"b":1446},{"a":1524,"b":1532}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":1627,"b":1633}]},{"name":"offset","required":true,"transform":{"type":"scalar"},"locs":[{"a":1647,"b":1654}]}],"statement":"select r.public_id as id, r.target_kind as kind, r.target_public_id as target_id,\n  case r.target_kind\n    when 'listing' then l.title\n    when 'feed_post' then f.title\n    when 'club_post' then left(p.body, 200)\n  end as target_title,\n  case r.target_kind\n    when 'listing' then private.author_name(l.author_id)\n    when 'feed_post' then private.author_name(f.author_id)\n    when 'club_post' then private.author_name(p.author_id)\n  end as target_author_name,\n  case r.target_kind\n    when 'listing' then case when l.id is null then null else l.hidden_at is not null end\n    when 'feed_post' then case when f.id is null then null else f.hidden_at is not null end\n    when 'club_post' then case when p.id is null then null else p.hidden_at is not null end\n  end as target_hidden,\n  r.reason, r.status, r.created_at, r.resolved_at,\n  private.staff_public_id(r.assigned_to) as assignee_id,\n  private.author_name(r.assigned_to) as assignee_name,\n  r.assigned_at,\n  coalesce(r.assigned_to = (select private.current_profile_id()), false) as assigned_to_me\nfrom public.content_reports r\nleft join public.listings l on r.target_kind = 'listing' and l.public_id = r.target_public_id\nleft join public.feed_posts f on r.target_kind = 'feed_post' and f.public_id = r.target_public_id\nleft join public.club_posts p on r.target_kind = 'club_post' and p.public_id = r.target_public_id\nwhere r.status = :status!::text\n  and (:assigned::text is null or (:assigned::text = 'me' and r.assigned_to = (select private.current_profile_id())) or (:assigned::text = 'unassigned' and r.assigned_to is null))\norder by r.created_at desc, r.id desc\nlimit :limit!::int offset :offset!::int"};
 
 /**
  * Query generated from SQL:
@@ -101,12 +106,17 @@ const getModerationReportsIR: any = {"usedParamSet":{"status":true,"limit":true,
  *     when 'feed_post' then case when f.id is null then null else f.hidden_at is not null end
  *     when 'club_post' then case when p.id is null then null else p.hidden_at is not null end
  *   end as target_hidden,
- *   r.reason, r.status, r.created_at, r.resolved_at
+ *   r.reason, r.status, r.created_at, r.resolved_at,
+ *   private.staff_public_id(r.assigned_to) as assignee_id,
+ *   private.author_name(r.assigned_to) as assignee_name,
+ *   r.assigned_at,
+ *   coalesce(r.assigned_to = (select private.current_profile_id()), false) as assigned_to_me
  * from public.content_reports r
  * left join public.listings l on r.target_kind = 'listing' and l.public_id = r.target_public_id
  * left join public.feed_posts f on r.target_kind = 'feed_post' and f.public_id = r.target_public_id
  * left join public.club_posts p on r.target_kind = 'club_post' and p.public_id = r.target_public_id
  * where r.status = :status!::text
+ *   and (:assigned::text is null or (:assigned::text = 'me' and r.assigned_to = (select private.current_profile_id())) or (:assigned::text = 'unassigned' and r.assigned_to is null))
  * order by r.created_at desc, r.id desc
  * limit :limit!::int offset :offset!::int
  * ```
