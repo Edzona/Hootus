@@ -1,44 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiRequest } from '../../lib/api'
-import { formatPrice } from '../../lib/format'
 import { supabase } from '../../lib/supabase'
 import { CampusAction } from '../../../../backend/src/types/campusAction'
-
-const empty = { clubs: [], events: [], posts: [], savedPosts: [], listings: [] }
-const tokyo = { timeZone: 'Asia/Tokyo' }
-const formatDate = (value, options) => new Intl.DateTimeFormat('en-US', { ...tokyo, ...options }).format(new Date(value))
-
-function postTime(value) {
-  const minutes = Math.max(1, Math.floor((Date.now() - Date.parse(value)) / 60000))
-  if (minutes < 60) return `${minutes} min`
-  if (minutes < 1440) return `${Math.floor(minutes / 60)} hr`
-  return `${Math.floor(minutes / 1440)} day${minutes >= 2880 ? 's' : ''}`
-}
-
-function normalize(data) {
-  for (const key of Object.keys(empty)) {
-    if (!Array.isArray(data?.[key])) throw new Error('Campus data could not be loaded. Please try again.')
-  }
-  const post = (item) => ({ ...item, time: postTime(item.createdAt) })
-  return {
-    ...data,
-    posts: data.posts.map(post),
-    savedPosts: data.savedPosts.map(post),
-    events: data.events.map(event => ({
-      ...event,
-      day: formatDate(event.startsAt, { day: '2-digit' }),
-      month: formatDate(event.startsAt, { month: 'short' }),
-      date: formatDate(event.startsAt, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-      time: `${formatDate(event.startsAt, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}–${formatDate(event.endsAt, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`,
-    })),
-    listings: data.listings.map(listing => ({
-      ...listing, kind: listing.category === 'housing' ? 'housing' : 'market',
-      label: listing.category === 'housing' ? 'Housing' : 'Marketplace',
-      price: formatPrice(listing.priceJpy, listing.category),
-      detail: listing.description, color: listing.category === 'housing' ? 'forest' : 'gold',
-    })),
-  }
-}
+import { emptyCampus, normalizeCampus } from './campusData'
 
 export default function useCampusData() {
   const [userId, setUserId] = useState(undefined)
@@ -84,7 +48,7 @@ export default function useCampusData() {
       request = request.catch(() => {}).then(async () => {
         if (controller.signal.aborted) return
         try {
-          const next = normalize(await apiRequest('/campus?limit=100', { signal: controller.signal }))
+          const next = normalizeCampus(await apiRequest('/campus?limit=100', { signal: controller.signal }))
           if (controller.signal.aborted) return
           setData({ ...next, ownerId: userId })
           if (initial || reveal) setRevealed(next.posts.map(post => post.id))
@@ -130,7 +94,7 @@ export default function useCampusData() {
   }, [])
 
   const hasData = !!data && data.ownerId === userId
-  const snapshot = hasData ? data : empty
+  const snapshot = hasData ? data : emptyCampus
   const allPosts = [...snapshot.posts, ...snapshot.savedPosts.filter(post => !snapshot.posts.some(item => item.id === post.id))]
   const act = (action, id, active, message) => mutate(`/campus/actions/${action}/${id}`, { active }, message)
   return {

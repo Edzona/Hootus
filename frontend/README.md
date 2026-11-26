@@ -1,9 +1,10 @@
 # HUS frontend
 
 Run `npm install` and `npm run dev` from this directory. Use `npm run build`
-for production assets, `npm run lint` for ESLint, and `npm test` for auth redirect
-and isolated-build regression tests. Run the API in `backend/`
-and configure the Vite API proxy as described in its README.
+for production assets, `npm run lint` for ESLint, `npm test` for unit tests
+(auth redirect, campus data formatting, and sign-in code error messages), and
+`npm run test:integration` for the isolated-build test. Run the API in
+`backend/` and configure the Vite API proxy as described in its README.
 
 Shared browser imports from `backend/src/types/` must be dependency-free. Shared
 enums live in `domain.ts`, `clubOptions.ts`, and `campusAction.ts`; backend-only

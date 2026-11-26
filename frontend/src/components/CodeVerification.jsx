@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { getSupabase } from '../lib/supabase'
+import { codeFormatError, verificationErrorMessage } from '../lib/codeVerification'
 
 export default function CodeVerification({ email, signingIn, resend, onChangeEmail }) {
   const id = useId()
@@ -20,18 +21,16 @@ export default function CodeVerification({ email, signingIn, resend, onChangeEma
     event.preventDefault()
     setError('')
     setMessage('')
-    if (!/^\d{6}$/.test(code.trim())) {
-      setError('Enter the six-digit code from your email.')
+    const formatError = codeFormatError(code)
+    if (formatError) {
+      setError(formatError)
       return
     }
     setStatus('verifying')
     try {
       const { data, error: authError } = await getSupabase().auth.verifyOtp({ email, token: code.trim(), type: 'email' })
       if (authError || !data.session) {
-        if (authError?.status === 429) setError('Too many attempts. Please wait a minute before trying again.')
-        else if (authError?.status >= 500 || authError?.name === 'AuthRetryableFetchError') {
-          setError('Sign-in is temporarily unavailable. Check your connection and try again.')
-        } else setError('That code is invalid or expired. Check your latest email or request another code.')
+        setError(verificationErrorMessage(authError))
         setStatus('idle')
         return
       }
